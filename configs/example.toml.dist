@@ -1,0 +1,11 @@
+gcp_project_id = ""
+
+[terra]
+workspace_namespace = ""
+workspace_name = ""
+
+[plan]
+inventory_path = "./data/inventory.ndjson"
+days_considered_old = 30
+size_considered_large = 1e6
+timestamp_plan_file = false

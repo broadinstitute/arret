@@ -136,6 +136,8 @@ dmypy.json
 
 *.pickle
 
-data/
+/data/*
+/data/**/*
+!/data/**/.gitkeep
 
 configs/*.toml

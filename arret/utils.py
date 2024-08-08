@@ -1,7 +1,7 @@
 from functools import partial
 from math import sqrt
 from time import sleep
-from typing import Callable, ParamSpec, Type, TypeVar
+from typing import Any, Callable, ParamSpec, Type, TypeVar
 
 import pandas as pd
 from click import echo
@@ -76,7 +76,7 @@ def maybe_retry(
             n_retries += 1
 
 
-def flatten(x):
+def flatten(x: Any) -> Any:
     if isinstance(x, dict):
         for k, v in x.items():
             yield from flatten(v)
@@ -87,7 +87,7 @@ def flatten(x):
         yield x
 
 
-def extract_unique_values(df):
+def extract_unique_values(df: pd.DataFrame) -> set[Any]:
     unique_values = set()
 
     for c in df.columns:
@@ -96,3 +96,14 @@ def extract_unique_values(df):
                 unique_values.update(flatten(x))
 
     return unique_values
+
+
+def human_readable_size(size: int) -> str:
+    units = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+
+    for unit in units:
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024.0
+
+    return f"{size:.2f} YB"
