@@ -44,8 +44,6 @@ def write_plan(
     plan.to_parquet(plan_file)
     echo(f"Wrote plan to {plan_file}")
 
-    pass
-
 
 def get_gs_urls(tw: TerraWorkspace, bucket_name: str) -> set[str]:
     entity_types = tw.get_entity_types()

@@ -6,6 +6,7 @@ import pandas as pd
 from click import echo
 from google.cloud import storage
 
+from arret.plan import get_gs_urls
 from arret.terra import TerraWorkspace
 
 
@@ -14,6 +15,7 @@ def do_clean(
 ) -> None:
     tw = TerraWorkspace(workspace_namespace, workspace_name)
     bucket_name = tw.get_bucket_name()
+    gs_urls = get_gs_urls(tw, bucket_name)
 
     storage_client = storage.Client(project=gcp_project_id)
     bucket = storage_client.bucket(bucket_name, user_project=gcp_project_id)
@@ -21,7 +23,10 @@ def do_clean(
     plan = pd.read_parquet(plan_file)
 
     # create evenly-sized batches of URLs to delete
-    blobs = plan["blobs"].explode()
+    blobs = plan["blobs"].explode().to_frame().rename(columns={"blobs": "blob"})
+    blobs["url"] = "gs://" + bucket_name + "/" + blobs["blob"]
+    assert ~blobs["url"].isin(gs_urls).any()
+
     n_blobs = len(blobs)
     max_batch_size = 500
     n_batches = 1 + n_blobs // max_batch_size
