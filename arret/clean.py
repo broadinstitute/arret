@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from math import ceil
 from pathlib import Path
 
@@ -13,6 +13,7 @@ from arret.terra import TerraWorkspace
 def do_clean(
     workspace_namespace: str, workspace_name: str, plan_file: Path, gcp_project_id: str
 ) -> None:
+    # get the referenced gs:// URLs again in case anything has changed
     tw = TerraWorkspace(workspace_namespace, workspace_name)
     bucket_name = tw.get_bucket_name()
     gs_urls = get_gs_urls(tw, bucket_name)
@@ -20,13 +21,16 @@ def do_clean(
     storage_client = storage.Client(project=gcp_project_id)
     bucket = storage_client.bucket(bucket_name, user_project=gcp_project_id)
 
+    # read in the cleaning plan
     plan = pd.read_parquet(plan_file)
 
-    # create evenly-sized batches of URLs to delete
+    # collect all blob names to delete and ensure they're all still deletable
     blobs = plan["blobs"].explode().to_frame().rename(columns={"blobs": "blob"})
     blobs["url"] = "gs://" + bucket_name + "/" + blobs["blob"]
     assert ~blobs["url"].isin(gs_urls).any()
 
+    # create evenly-sized batches of URLs to delete (there's a max of 1000 operations
+    # for a `storage.Client` batch context so do this outer layer of batching, too)
     n_blobs = len(blobs)
     max_batch_size = 500
     n_batches = 1 + n_blobs // max_batch_size
@@ -49,8 +53,7 @@ def do_clean(
                 )
             )
 
-        for _ in as_completed(futures):
-            pass
+        wait(futures)
 
 
 def delete_batch(

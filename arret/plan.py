@@ -17,11 +17,13 @@ def write_plan(
     size_considered_large: int,
     timestamp_plan_file: bool,
 ) -> None:
+    # get set of all gs:// URLs referenced in the workspace's data tables
     tw = TerraWorkspace(workspace_namespace, workspace_name)
     bucket_name = tw.get_bucket_name()
     gs_urls = get_gs_urls(tw, bucket_name)
 
-    inv = read_inventory(inventory_path)
+    # read the bucket inventory and make a cleaning plan
+    inv = read_inventory(inventory_path, bucket_name)
     plan = make_plan(inv, gs_urls, days_considered_old, size_considered_large)
 
     stats = {
@@ -32,6 +34,7 @@ def write_plan(
 
     echo(f"Plan stats: {stats}")
 
+    # write plan as parquet
     plan_dir = os.path.join(".", "data", "plans", workspace_namespace, workspace_name)
     os.makedirs(plan_dir, exist_ok=True)
 
@@ -65,18 +68,18 @@ def get_gs_urls(tw: TerraWorkspace, bucket_name: str) -> set[str]:
     return gs_urls
 
 
-def read_inventory(inventory_path: Path) -> pd.DataFrame:
+def read_inventory(inventory_path: Path, bucket_name: str) -> pd.DataFrame:
     inv = pd.read_json(inventory_path, lines=True)
-    inv = inv.loc[:, ["bucket", "name", "updated", "size", "crc32c"]]
-    inv["gs_url"] = "gs://" + inv["bucket"] + "/" + inv["name"]
+    inv = inv.loc[:, ["name", "updated", "size"]]
+
+    # construct full URLs for blob names
+    inv["gs_url"] = "gs://" + bucket_name + "/" + inv["name"]
 
     inv = inv.astype(
         {
-            "bucket": "string",
             "name": "string",
             "updated": "datetime64[ns, UTC]",
             "size": "int64",
-            "crc32c": "string",
             "gs_url": "string",
         }
     )
@@ -90,46 +93,53 @@ def make_plan(
     days_considered_old: int,
     size_considered_large: int,
 ) -> pd.DataFrame:
-    inv["in_data_table"] = inv["gs_url"].isin(gs_urls)
-    inv["deletable"] = ~inv["in_data_table"]
+    # file is generally deletable if it's not referenced in a data table
+    inv["deletable"] = ~inv["gs_url"].isin(gs_urls)
 
-    max_last_updated = (
-        pd.Timestamp.now() - pd.Timedelta(days=days_considered_old)
-    ).date()
+    # indicate files that are "old"
     inv["deletable_age"] = inv["deletable"] & inv["updated"].dt.date.lt(
-        max_last_updated
+        (pd.Timestamp.now() - pd.Timedelta(days=days_considered_old)).date()
     )
 
+    # indicate empty and "large" files
     inv["deletable_empty"] = inv["deletable"] & inv["size"].eq(0)
     inv["deletable_large"] = inv["deletable"] & inv["size"].gt(size_considered_large)
 
+    # indicate deletable files we'll make an exception for (task scripts and logs)
     inv["deletable_not_kept"] = inv["deletable"] & ~(
         inv["name"].str.endswith(".log") | inv["name"].str.endswith("/script")
     )
+
+    # indicate GCS paths representing the pipeline-logs folder, which are redundant with
+    # task logs
     inv["deletable_pipeline_logs"] = inv["deletable"] & inv["name"].str.contains(
         r"/pipelines-logs/[^/]", regex=True
     )
 
+    # split blob names by `/` to columns
     max_name_depth = inv["name"].str.count("/").max()
     name_parts = inv["name"].str.split("/", expand=True, regex=False)
     name_parts.columns = ["name" + str(x) for x in name_parts.columns]
     name_part_cols = list(name_parts.columns)
     inv = pd.concat([inv, name_parts], axis=1)
 
-    inv_orig = inv.copy()
+    ops = []  # start collecting delete/keep operations
 
-    inv = inv_orig.copy()
-    ops = []
-
+    # iterate over `name0`...`nameN` columns
     for cix in range(max_name_depth + 1):
+        # for each blob, keep track of the path we're considering this iteration (path
+        # could be a GCS folder or a file)
         if cix == 0:
             inv["path"] = inv[name_part_cols[cix]]
         else:
             inv["path"] = inv["path"] + "/" + inv[name_part_cols[cix]]
 
+        # group by current paths
         inv = inv.set_index(name_part_cols[cix], append=cix > 0)
         inv_g = inv.groupby(inv.index.names)
 
+        # for each group, check are all blobs in that path deletable (for different
+        # kinds of deletability)
         all_deletable = inv_g["deletable"].all()
         all_deletable_age = inv_g["deletable_age"].all()
         all_deletable_empty = inv_g["deletable_empty"].all()
@@ -137,6 +147,7 @@ def make_plan(
         all_deletable_not_kept = inv_g["deletable_not_kept"].all()
         all_deletable_pipeline_logs = inv_g["deletable_pipeline_logs"].all()
 
+        # collect stats/deletability for each group
         total_size = inv_g["size"].sum()
         last_updated = inv_g["updated"].max()
         n_objs = inv_g.size()
@@ -159,31 +170,19 @@ def make_plan(
 
         stats["depth"] = cix
 
+        # finally mark whether each path should be deleted
         stats["to_delete"] = (
-            # delete folders whose files are all
-            # - empty, or
-            # - pipeline logs, or
-            # - old (unless there's a forcibly-kept file somewhere)
-            stats["n_objs"].gt(1)
-            & (
-                stats["deletable_empty"]
-                | stats["deletable_pipeline_logs"]
-                | (stats["deletable_age"] & stats["deletable_not_kept"])
-            )
-        ) | (
-            # delete a file if it is
-            # - large, or
-            # - old and not forcibly kept
-            stats["n_objs"].eq(1)
-            & (
-                stats["deletable_large"]
-                | (stats["deletable_age"] & stats["deletable_not_kept"])
-            )
+            stats["deletable_empty"]
+            | stats["deletable_large"]
+            | stats["deletable_pipeline_logs"]
+            | (stats["deletable_age"] & stats["deletable_not_kept"])
         )
 
-        stats["kept"] = stats["n_objs"].eq(1) & ~stats["to_delete"]
+        # also indicate whether a path represents a single file and we're keeping it
+        stats["to_keep"] = stats["n_objs"].eq(1) & ~stats["to_delete"]
 
         if stats["to_delete"].any():
+            # collect all the blob names under each deletable path
             blobs = (
                 (
                     inv.loc[stats.loc[stats["to_delete"]].index]
@@ -196,10 +195,12 @@ def make_plan(
 
             stats = stats.join(blobs, how="left")
 
-        inv = inv.loc[stats.loc[~(stats["to_delete"] | stats["kept"])].index]
+        # can remove all blobs in inventory if we just marked them as deleted or kept
+        inv = inv.loc[stats.loc[~(stats["to_delete"] | stats["to_keep"])].index]
 
         ops.append(stats.reset_index(drop=True))
 
+    # return data frame of deletion operations
     ops = pd.concat(ops)
     delete_ops = ops.loc[ops["to_delete"]].sort_values("size", ascending=False)
-    return delete_ops.drop(columns=["to_delete", "kept"])
+    return delete_ops.drop(columns=["to_delete", "to_keep"])
