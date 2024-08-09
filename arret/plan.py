@@ -27,8 +27,7 @@ def write_plan(
     plan = make_plan(inv, gs_urls, days_considered_old, size_considered_large)
 
     stats = {
-        "n_ops": len(plan),
-        "n_objs": int(plan["n_objs"].sum()),
+        "n_objs": len(plan),
         "total_size": human_readable_size(plan["size"].sum()),
     }
 
@@ -44,11 +43,12 @@ def write_plan(
     else:
         plan_file = os.path.join(plan_dir, "plan.parquet")
 
+    echo(f"Writing plan to {plan_file}")
     plan.to_parquet(plan_file)
-    echo(f"Wrote plan to {plan_file}")
 
 
 def get_gs_urls(tw: TerraWorkspace, bucket_name: str) -> set[str]:
+    echo("Getting GCS URLs referenced in data tables")
     entity_types = tw.get_entity_types()
     entities = {k: tw.get_entities(k) for k in entity_types}
 
@@ -69,12 +69,16 @@ def get_gs_urls(tw: TerraWorkspace, bucket_name: str) -> set[str]:
 
 
 def read_inventory(inventory_path: Path, bucket_name: str) -> pd.DataFrame:
-    inv = pd.read_json(inventory_path, lines=True)
+    echo(f"Reading inventory from {inventory_path}")
+    inv = pd.read_json(
+        inventory_path, lines=True, dtype="string", encoding="utf-8", engine="pyarrow"
+    )
     inv = inv.loc[:, ["name", "updated", "size"]]
 
     # construct full URLs for blob names
     inv["gs_url"] = "gs://" + bucket_name + "/" + inv["name"]
 
+    echo("Setting inventory dtypes")
     inv = inv.astype(
         {
             "name": "string",
@@ -93,34 +97,33 @@ def make_plan(
     days_considered_old: int,
     size_considered_large: int,
 ) -> pd.DataFrame:
+    echo("Making cleaning plan")
     # file is generally deletable if it's not referenced in a data table
-    inv["deletable"] = ~inv["gs_url"].isin(gs_urls)
-
-    # indicate files that are "old"
-    inv["deletable_age"] = inv["deletable"] & inv["updated"].dt.date.lt(
-        (pd.Timestamp.now() - pd.Timedelta(days=days_considered_old)).date()
-    )
+    inv["in_data_table"] = inv["gs_url"].isin(gs_urls)
 
     # indicate empty and "large" files
-    inv["deletable_empty"] = inv["deletable"] & inv["size"].eq(0)
-    inv["deletable_large"] = inv["deletable"] & inv["size"].gt(size_considered_large)
-
-    # indicate deletable files we'll make an exception for (task scripts and logs)
-    inv["deletable_not_kept"] = inv["deletable"] & ~(
-        inv["name"].str.endswith(".log") | inv["name"].str.endswith("/script")
-    )
+    inv["is_empty"] = inv["size"].eq(0)
+    inv["is_large"] = inv["size"].gt(size_considered_large)
 
     # indicate GCS paths representing the pipeline-logs folder, which are redundant with
     # task logs
-    inv["deletable_pipeline_logs"] = inv["deletable"] & inv["name"].str.contains(
+    inv["is_pipeline_logs"] = inv["name"].str.contains(
         r"/pipelines-logs/[^/]", regex=True
     )
 
+    # indicate files that are "old"
+    inv["is_old"] = inv["updated"].dt.date.lt(
+        (pd.Timestamp.now() - pd.Timedelta(days=days_considered_old)).date()
+    )
+
+    # indicate deletable files we'll make an exception for (task scripts and logs) even
+    # if they're old
+    inv["force_keep"] = inv["name"].str.endswith(".log") | inv["name"].str.endswith(
+        "/script"
+    )
+
     inv["to_delete"] = (
-        inv["deletable_empty"]
-        | inv["deletable_pipeline_logs"]
-        | inv["deletable_large"]
-        | (inv["deletable_age"] & inv["deletable_not_kept"])
+        ~inv["in_data_table"] & ~inv["force_keep"] & (inv["is_old"] | inv["is_large"])
     )
 
     return inv.loc[inv["to_delete"], ["name", "updated", "size", "gs_url"]].sort_values(

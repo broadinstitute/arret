@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import ThreadPoolExecutor, wait
 from math import ceil
 from pathlib import Path
 
@@ -18,21 +18,20 @@ def do_clean(
     bucket_name = tw.get_bucket_name()
     gs_urls = get_gs_urls(tw, bucket_name)
 
-    storage_client = storage.Client(project=gcp_project_id)
-    bucket = storage_client.bucket(bucket_name, user_project=gcp_project_id)
-
     # read in the cleaning plan
     plan = pd.read_parquet(plan_file)
 
     # collect all blob names to delete and ensure they're all still deletable
-    blobs = plan["blobs"].explode().to_frame().rename(columns={"blobs": "blob"})
-    blobs["url"] = "gs://" + bucket_name + "/" + blobs["blob"]
-    assert ~blobs["url"].isin(gs_urls).any()
+    assert ~plan["gs_url"].isin(gs_urls).any()
+
+    # plan_orig = plan.copy()
+    # plan = plan_orig.copy()
+    # plan = plan.loc[plan["size"].lt(1e6)].iloc[247000:]
 
     # create evenly-sized batches of URLs to delete (there's a max of 1000 operations
     # for a `storage.Client` batch context so do this outer layer of batching, too)
-    n_blobs = len(blobs)
-    max_batch_size = 500
+    n_blobs = len(plan)
+    max_batch_size = 1000
     n_batches = 1 + n_blobs // max_batch_size
     batch_size = ceil(n_blobs / n_batches)
 
@@ -40,7 +39,9 @@ def do_clean(
         futures = []
 
         for i in range(0, n_batches):
-            batch = list(blobs[(i * batch_size) : (i * batch_size + batch_size)])
+            batch = list(
+                plan["name"].iloc[(i * batch_size) : (i * batch_size + batch_size)]
+            )
 
             futures.append(
                 executor.submit(
@@ -48,8 +49,8 @@ def do_clean(
                     batch=batch,
                     i=i,
                     n_batches=n_batches,
-                    storage_client=storage_client,
-                    bucket=bucket,
+                    gcp_project_id=gcp_project_id,
+                    bucket_name=bucket_name,
                 )
             )
 
@@ -57,13 +58,12 @@ def do_clean(
 
 
 def delete_batch(
-    batch: list[str],
-    i: int,
-    n_batches: int,
-    storage_client: storage.Client,
-    bucket: storage.Bucket,
+    batch: list[str], i: int, n_batches: int, gcp_project_id: str, bucket_name: str
 ) -> None:
     echo(f"Deleting batch {i+1} of {n_batches}")
+
+    storage_client = storage.Client(project=gcp_project_id)
+    bucket = storage_client.bucket(bucket_name, user_project=gcp_project_id)
 
     with storage_client.batch(raise_exception=False):
         for blob in batch:
