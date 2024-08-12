@@ -21,16 +21,16 @@ def do_clean(
     # read in the cleaning plan
     plan = pd.read_parquet(plan_file)
 
-    # collect all blob names to delete and ensure they're all still deletable
-    assert ~plan["gs_url"].isin(gs_urls).any()
+    to_delete = plan.loc[
+        plan["to_delete"], ["name", "updated", "size", "gs_url"]
+    ].sort_values("size", ascending=False)
 
-    # plan_orig = plan.copy()
-    # plan = plan_orig.copy()
-    # plan = plan.loc[plan["size"].lt(1e6)].iloc[247000:]
+    # ensure blobs all still deletable
+    assert ~to_delete["gs_url"].isin(gs_urls).any()
 
     # create evenly-sized batches of URLs to delete (there's a max of 1000 operations
     # for a `storage.Client` batch context so do this outer layer of batching, too)
-    n_blobs = len(plan)
+    n_blobs = len(to_delete)
     max_batch_size = 1000
     n_batches = 1 + n_blobs // max_batch_size
     batch_size = ceil(n_blobs / n_batches)
@@ -40,7 +40,7 @@ def do_clean(
 
         for i in range(0, n_batches):
             batch = list(
-                plan["name"].iloc[(i * batch_size) : (i * batch_size + batch_size)]
+                to_delete["name"].iloc[(i * batch_size) : (i * batch_size + batch_size)]
             )
 
             futures.append(

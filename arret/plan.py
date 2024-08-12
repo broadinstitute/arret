@@ -27,8 +27,8 @@ def write_plan(
     plan = make_plan(inv, gs_urls, days_considered_old, size_considered_large)
 
     stats = {
-        "n_objs": len(plan),
-        "total_size": human_readable_size(plan["size"].sum()),
+        "n_objs": plan["to_delete"].sum(),
+        "total_size": human_readable_size(plan.loc[plan["to_delete"], "size"].sum()),
     }
 
     echo(f"Plan stats: {stats}")
@@ -68,7 +68,7 @@ def get_gs_urls(tw: TerraWorkspace, bucket_name: str) -> set[str]:
     return gs_urls
 
 
-def read_inventory(inventory_path: Path, bucket_name: str) -> pd.DataFrame:
+def read_inventory(inventory_path: Path | str, bucket_name: str) -> pd.DataFrame:
     echo(f"Reading inventory from {inventory_path}")
     inv = pd.read_json(
         inventory_path, lines=True, dtype="string", encoding="utf-8", engine="pyarrow"
@@ -102,7 +102,6 @@ def make_plan(
     inv["in_data_table"] = inv["gs_url"].isin(gs_urls)
 
     # indicate empty and "large" files
-    inv["is_empty"] = inv["size"].eq(0)
     inv["is_large"] = inv["size"].gt(size_considered_large)
 
     # indicate GCS paths representing the pipeline-logs folder, which are redundant with
@@ -126,6 +125,4 @@ def make_plan(
         ~inv["in_data_table"] & ~inv["force_keep"] & (inv["is_old"] | inv["is_large"])
     )
 
-    return inv.loc[inv["to_delete"], ["name", "updated", "size", "gs_url"]].sort_values(
-        "size", ascending=False
-    )
+    return inv
