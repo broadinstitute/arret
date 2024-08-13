@@ -34,6 +34,7 @@ def do_clean(
     max_batch_size = 1000
     n_batches = 1 + n_blobs // max_batch_size
     batch_size = ceil(n_blobs / n_batches)
+    echo(f"Deleting {n_blobs} blobs in {n_batches} batches of {batch_size} each")
 
     with ThreadPoolExecutor() as executor:
         futures = []

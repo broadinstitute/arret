@@ -104,11 +104,8 @@ def make_plan(
     # indicate large files
     inv["is_large"] = inv["size"].gt(size_considered_large)
 
-    # indicate GCS paths representing the pipeline-logs folder, which are redundant with
-    # task logs
-    inv["is_pipeline_logs"] = inv["name"].str.contains(
-        r"/pipelines-logs/[^/]", regex=True
-    )
+    # indicate GCS paths for pipeline-logs folder, which are redundant with task logs
+    inv["is_pipeline_logs"] = inv["name"].str.contains("/pipelines-logs/", regex=False)
 
     # indicate files that are "old"
     inv["is_old"] = inv["updated"].dt.date.lt(
