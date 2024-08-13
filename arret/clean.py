@@ -18,7 +18,7 @@ def do_clean(
     bucket_name = tw.get_bucket_name()
     gs_urls = get_gs_urls(tw, bucket_name)
 
-    # read in the cleaning plan
+    # read in the cleanup plan
     plan = pd.read_parquet(plan_file)
 
     to_delete = plan.loc[

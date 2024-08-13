@@ -22,7 +22,7 @@ def write_plan(
     bucket_name = tw.get_bucket_name()
     gs_urls = get_gs_urls(tw, bucket_name)
 
-    # read the bucket inventory and make a cleaning plan
+    # read the bucket inventory and make a cleanup plan
     inv = read_inventory(inventory_path, bucket_name)
     plan = make_plan(inv, gs_urls, days_considered_old, size_considered_large)
 
@@ -97,11 +97,11 @@ def make_plan(
     days_considered_old: int,
     size_considered_large: int,
 ) -> pd.DataFrame:
-    echo("Making cleaning plan")
+    echo("Making cleanup plan")
     # file is generally deletable if it's not referenced in a data table
     inv["in_data_table"] = inv["gs_url"].isin(gs_urls)
 
-    # indicate empty and "large" files
+    # indicate large files
     inv["is_large"] = inv["size"].gt(size_considered_large)
 
     # indicate GCS paths representing the pipeline-logs folder, which are redundant with
@@ -122,7 +122,9 @@ def make_plan(
     )
 
     inv["to_delete"] = (
-        ~inv["in_data_table"] & ~inv["force_keep"] & (inv["is_old"] | inv["is_large"])
+        ~inv["in_data_table"]
+        & ~inv["force_keep"]
+        & (inv["is_pipeline_logs"] | inv["is_old"] | inv["is_large"])
     )
 
     return inv
