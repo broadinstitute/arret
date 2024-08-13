@@ -36,6 +36,9 @@ def do_clean(
     batch_size = ceil(n_blobs / n_batches)
     echo(f"Deleting {n_blobs} blobs in {n_batches} batches of {batch_size} each")
 
+    storage_client = storage.Client(project=gcp_project_id)
+    bucket = storage_client.bucket(bucket_name, user_project=gcp_project_id)
+
     with ThreadPoolExecutor() as executor:
         futures = []
 
@@ -50,8 +53,8 @@ def do_clean(
                     batch=batch,
                     i=i,
                     n_batches=n_batches,
-                    gcp_project_id=gcp_project_id,
-                    bucket_name=bucket_name,
+                    storage_client=storage_client,
+                    bucket=bucket,
                 )
             )
 
@@ -59,12 +62,13 @@ def do_clean(
 
 
 def delete_batch(
-    batch: list[str], i: int, n_batches: int, gcp_project_id: str, bucket_name: str
+    batch: list[str],
+    i: int,
+    n_batches: int,
+    storage_client: storage.Client,
+    bucket=storage.Bucket,
 ) -> None:
     echo(f"Deleting batch {i+1} of {n_batches}")
-
-    storage_client = storage.Client(project=gcp_project_id)
-    bucket = storage_client.bucket(bucket_name, user_project=gcp_project_id)
 
     with storage_client.batch(raise_exception=False):
         for blob in batch:
