@@ -21,12 +21,13 @@ def do_clean(
     # read in the cleanup plan
     plan = pd.read_parquet(plan_file)
 
-    to_delete = plan.loc[
-        plan["to_delete"], ["name", "updated", "size", "gs_url"]
-    ].sort_values("size", ascending=False)
+    plan["in_data_table"] = plan["gs_url"].isin(gs_urls)
+    plan["to_delete"] = plan["to_delete"] & ~plan["in_data_table"]
 
-    # ensure blobs all still deletable
-    assert ~to_delete["gs_url"].isin(gs_urls).any()
+    to_delete = plan.loc[
+        plan["to_delete"] & plan["is_old"],
+        ["name", "updated", "size", "gs_url"],
+    ].sort_values("size", ascending=False)
 
     # create evenly-sized batches of URLs to delete (there's a max of 1000 operations
     # for a `storage.Client` batch context so do this outer layer of batching, too)
