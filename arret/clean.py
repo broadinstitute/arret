@@ -21,7 +21,7 @@ def do_clean(
     # read in the cleanup plan
     plan = pd.read_parquet(plan_file)
 
-    plan["in_data_table"] = plan["gs_url"].isin(gs_urls)
+    plan["in_data_table"] = plan["gs_url"].isin(list(gs_urls))
     plan["to_delete"] = plan["to_delete"] & ~plan["in_data_table"]
 
     to_delete = plan.loc[
@@ -55,7 +55,7 @@ def do_clean(
                     i=i,
                     n_batches=n_batches,
                     storage_client=storage_client,
-                    bucket=bucket,
+                    bucket=bucket,  # pyright: ignore
                 )
             )
 
@@ -73,4 +73,4 @@ def delete_batch(
 
     with storage_client.batch(raise_exception=False):
         for blob in batch:
-            bucket.delete_blob(blob)
+            bucket.delete_blob(blob_name=blob)  # pyright: ignore

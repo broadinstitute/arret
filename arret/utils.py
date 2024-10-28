@@ -98,7 +98,7 @@ def extract_unique_values(df: pd.DataFrame) -> set[Any]:
     return unique_values
 
 
-def human_readable_size(size: int) -> str:
+def human_readable_size(size: float) -> str:
     units = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
 
     for unit in units:

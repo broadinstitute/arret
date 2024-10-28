@@ -88,5 +88,4 @@ class BoundedThreadPoolExecutor(ThreadPoolExecutor):
             ThreadPoolExecutor {[type]} -- [description]
         """
         super().__init__(*args, **kwargs)
-        # noinspection PyTypeChecker
-        self._work_queue = Queue(queue_size)
+        self._work_queue = Queue(queue_size)  # type: ignore

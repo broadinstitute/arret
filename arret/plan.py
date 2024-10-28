@@ -99,7 +99,7 @@ def make_plan(
 ) -> pd.DataFrame:
     echo("Making cleanup plan")
     # file is generally deletable if it's not referenced in a data table
-    inv["in_data_table"] = inv["gs_url"].isin(gs_urls)
+    inv["in_data_table"] = inv["gs_url"].isin(list(gs_urls))
 
     # indicate large files
     inv["is_large"] = inv["size"].gt(size_considered_large)

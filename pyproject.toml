@@ -17,6 +17,7 @@ pyarrow = "^17.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.5.6"
+pyright = "^1.1.386"
 [tool.ruff]
 select = [
     "I",  # isort formatting
@@ -25,3 +26,7 @@ select = [
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
