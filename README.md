@@ -26,23 +26,20 @@ It will delete objects in the bucket that are redundant (e.g. `pipeline-logs`), 
 
 This repo expects that your `GOOGLE_APPLICATION_CREDENTIALS` authorizes write access to the Terra workspace (and its bucket).
 
-# Generating inventory
-
-For now, gcs-inventory-loader is used to generate a new line-delimited JSON file of the bucket's objects:
-
-1. Fill out the `PROJECT` value in `default.cfg`.
-2. In `cat.py`, fix the print statement in `page_outputter` so that it prints JSON instead of Python dictionaries: `print(json.dumps(blob_metadata))`.
-3. Run the tool: `python -m gcs_inventory_loader cat fc-secure-uuid-goes-here > ../arret/data/inventory.ndjson`.
-
 # Running
 
-Fill out a new config file based on `configs/example.toml.dist` and generate a cleanup plan:
+1. Fill out a new config file based on `configs/example.toml.dist` and generate a bucket inventory:
+
+```shell
+poetry run -m arret --config-path="./configs/your_config.toml" inventory
+```
+2. Generate a cleanup plan:
 
 ```shell
 poetry run -m arret --config-path="./configs/your_config.toml" plan
 ```
 
-Then, do the cleanup:
+3. Do the cleanup:
 
 ```shell
 poetry run -m arret --config-path="./configs/your_config.toml" clean --plan-file="./data/plans/the-workspace-namespace/the-workspace-name/plan.parquet"
