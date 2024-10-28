@@ -1,12 +1,15 @@
+import logging
 from pathlib import Path
 from typing import Annotated, Any
 
 import pandas as pd
+import psutil
 import tomllib
 import typer
 from click import echo
 
 from arret.clean import do_clean
+from arret.inventory import InventoryGenerator
 from arret.plan import write_plan
 
 pd.set_option("display.max_columns", 30)
@@ -34,10 +37,32 @@ def main(
     ctx: typer.Context,
     config_path: Annotated[Path, typer.Option(exists=True)],
 ):
+    logger = logging.getLogger()
+    logger.addHandler(logging.StreamHandler())
+    logger.setLevel(logging.INFO)
+
     with open(config_path, "rb") as f:
         config.update(tomllib.load(f))
 
     ctx.obj = config
+
+
+@app.command()
+def inventory(
+    ctx: typer.Context,
+    n_workers: Annotated[int, typer.Option()] = psutil.cpu_count(),
+    work_queue_size: Annotated[int, typer.Option()] = 1000,
+) -> None:
+    ig = InventoryGenerator(
+        workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
+        workspace_name=ctx.obj["terra"]["workspace_name"],
+        gcp_project_id=ctx.obj["gcp_project_id"],
+        out_file=ctx.obj["plan"]["inventory_path"],
+        n_workers=n_workers,
+        work_queue_size=work_queue_size,
+    )
+
+    ig.write_inventory()
 
 
 @app.command()
