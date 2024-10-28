@@ -1,10 +1,10 @@
+import logging
 from functools import partial
 from math import sqrt
 from time import sleep
 from typing import Any, Callable, ParamSpec, Type, TypeVar
 
 import pandas as pd
-from click import echo
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -71,7 +71,7 @@ def maybe_retry(
                 raise e
 
             wait_seconds = round(waiter(n_retries + 1), 1)
-            echo(f"{e} (retrying in {wait_seconds}s)", err=True)
+            logging.warning(f"{e} (retrying in {wait_seconds}s)")
             sleep(wait_seconds)
             n_retries += 1
 

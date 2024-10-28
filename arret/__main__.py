@@ -6,7 +6,6 @@ import pandas as pd
 import psutil
 import tomllib
 import typer
-from click import echo
 
 from arret.clean import do_clean
 from arret.inventory import InventoryGenerator
@@ -29,7 +28,7 @@ config: dict[str, Any] = {}
 
 # noinspection PyUnusedLocal
 def done(*args, **kwargs):
-    echo("Done.")
+    logging.info("Done.")
 
 
 @app.callback(result_callback=done)
@@ -86,6 +85,7 @@ def clean(
         workspace_name=ctx.obj["terra"]["workspace_name"],
         plan_file=plan_file,
         gcp_project_id=ctx.obj["gcp_project_id"],
+        other_workspaces=ctx.obj["terra"]["other_workspaces"],
     )
 
 

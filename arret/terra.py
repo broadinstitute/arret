@@ -1,8 +1,8 @@
+import logging
 from typing import Any, Callable
 
 import pandas as pd
 import requests
-from click import echo
 from firecloud import api as firecloud_api
 
 from arret.utils import maybe_retry
@@ -73,6 +73,6 @@ def call_firecloud_api(func: Callable, *args: Any, **kwargs: Any) -> Any:
         raise requests.RequestException(f"HTTP {res.status_code} error: {res.json()}")
     except Exception as e:
         # it's returning HTML or we can't parse the JSON
-        echo(f"Error getting response as JSON: {e}", err=True)
-        echo(f"Response text: {res.text}", err=True)
+        logging.error(f"Error getting response as JSON: {e}")
+        logging.error(f"Response text: {res.text}")
         raise requests.RequestException(f"HTTP {res.status_code} error")
