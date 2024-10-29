@@ -45,7 +45,7 @@ def write_plan(
         read_inventory(db, inventory_path, bucket_name)
         make_plan(db, days_considered_old, size_considered_large)
 
-        total_size = db.table("blobs").sum("size").fetchone()[0]
+        total_size = db.table("blobs").sum("size").fetchone()[0]  # pyright: ignore
         logging.info(f"Total size: {human_readable_size(total_size)}")
 
 

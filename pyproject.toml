@@ -2,7 +2,8 @@
 name = "arret"
 version = "0.1.0"
 description = ""
-authors = []
+authors = ["Devin McCabe <dmccabe@broadinstitute.org>"]
+license = "MIT"
 readme = "README.md"
 packages = [{include = "arret"}]
 
@@ -19,6 +20,7 @@ duckdb = "^1.1.2"
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.5.6"
 pyright = "^1.1.386"
+
 [tool.ruff]
 select = [
     "I",  # isort formatting
