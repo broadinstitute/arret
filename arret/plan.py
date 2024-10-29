@@ -14,7 +14,6 @@ def write_plan(
     inventory_path: os.PathLike,
     days_considered_old: int,
     size_considered_large: int,
-    timestamp_plan_file: bool,
 ) -> None:
     """
     Write a Parquet cleanup plan for a Terra workspace based on its inventory.
@@ -25,7 +24,6 @@ def write_plan(
     :param days_considered_old: number of days after which a file is considered old
     :param size_considered_large: size threshold (in bytes) above which a file is
     considered large
-    :param timestamp_plan_file: whether to include a timestamp in the plan's file name
     """
 
     # get set of all gs:// URLs referenced in the workspace's data tables
@@ -42,12 +40,7 @@ def write_plan(
     # write plan as parquet
     plan_dir = os.path.join(".", "data", "plans", workspace_namespace, workspace_name)
     os.makedirs(plan_dir, exist_ok=True)
-
-    if timestamp_plan_file:
-        now = datetime.datetime.now().isoformat(timespec="seconds").replace(":", "-")
-        plan_file = os.path.join(plan_dir, f"{now}.parquet")
-    else:
-        plan_file = os.path.join(plan_dir, "plan.parquet")
+    plan_file = os.path.join(plan_dir, "plan.parquet")
 
     logging.info(f"Writing plan to {plan_file}")
     plan.to_parquet(plan_file)

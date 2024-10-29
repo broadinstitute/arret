@@ -72,7 +72,6 @@ def plan(ctx: typer.Context) -> None:
         inventory_path=ctx.obj["plan"]["inventory_path"],
         days_considered_old=ctx.obj["plan"]["days_considered_old"],
         size_considered_large=ctx.obj["plan"]["size_considered_large"],
-        timestamp_plan_file=ctx.obj["plan"]["timestamp_plan_file"],
     )
 
 
