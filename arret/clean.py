@@ -122,7 +122,17 @@ def get_gs_urls(workspace_namespace: str, workspace_name: str) -> set[str]:
 
 def apply_delete_logic(db: duckdb.DuckDBPyConnection, gs_urls: set[str]) -> None:
     """
-    Apply deletion logic to a plan data frame.
+    Apply deletion logic to a plan data frame: Delete a blob if any of the following is
+    true:
+
+        - blob is old (based on `days_considered_old`)
+        - blob is large (based on `bytes_considered_large`)
+        - blob is inside a `/pipelines-logs/` "folder"
+
+    ...except when either of the following is true:
+        - blob is referenced in a Terra data table in the workspace of interest or any
+        of the `other_workspaces`
+        - blob is forcibly kept (i.e. it's a script or .log file)
 
     :param db: the DuckDB database
     :param gs_urls: set of unique GCS URLs found in the data tables

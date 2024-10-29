@@ -52,4 +52,13 @@ This loads the generated inventory and stores it as a DuckDB database, with addi
 poetry run -m arret --config-path="./configs/your_config.toml" clean
 ```
 
-This reopens the DuckDB and deletes blobs that are old or large (according to your config), or redundant pipeline logs, excluding files that are forcibly kept for recordkeeping purposes (`script` and `.log` files) or those referenced in any data tables in any of the Terra workspaces in your config (the workspace we're deleting from as well as `other_workspaces`).
+This reopens the DuckDB and collects blobs to be deleted. It will delete a blob if any of the following is
+true:
+
+- blob is old (based on `days_considered_old`)
+- blob is large (based on `bytes_considered_large`)
+- blob is inside a `/pipelines-logs/` folder
+
+...**except** when either of the following is true:
+- blob is referenced in a Terra data table in the workspace of interest or any of the `other_workspaces`
+- blob is forcibly kept (i.e. it's a `script` or `.log` file)
