@@ -128,14 +128,15 @@ def apply_delete_logic(db: duckdb.DuckDBPyConnection, gs_urls: set[str]) -> None
     :param gs_urls: set of unique GCS URLs found in the data tables
     """
 
-    gs_urls_df = pd.DataFrame({"url": list(gs_urls)})
-    db.register("gs_urls_df", gs_urls_df)
+    # register set of data table gs:// URLs as a DuckDB table
+    data_table_urls = pd.DataFrame({"url": list(gs_urls)})
+    db.register("data_table_urls", data_table_urls)
 
     db.sql("""
         UPDATE
             blobs
         SET
-            in_data_table = url IN (SELECT url FROM gs_urls_df);
+            in_data_table = url IN (SELECT url FROM data_table_urls);
     """)
 
     db.sql("""

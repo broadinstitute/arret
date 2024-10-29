@@ -11,7 +11,7 @@ It will delete objects in the bucket that are redundant (e.g. `pipelines-logs/*`
     - [pyenv](https://github.com/pyenv/pyenv)
     - [Poetry](https://python-poetry.org/)
 
-2. Install the required Python version (3.12.3, but other 3.12+ versions should work):
+2. Install the required Python version (developed with 3.12.3, but other 3.12+ versions should work):
    ```shell
    pyenv install "$(cat .python-version)"
    ```

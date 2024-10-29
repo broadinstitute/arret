@@ -23,7 +23,8 @@ class InventoryGenerator:
         n_workers: int = 2,
     ):
         """
-        Write a new line-delimited JSON file of a Terra Workspace's GCS bucket.
+        Write a new line-delimited JSON file containing metadata for all blobs in a
+        Terra Workspace's GCS bucket.
 
         :param workspace_namespace: the namespace of the Terra workspace
         :param workspace_name: the name of the Terra workspace

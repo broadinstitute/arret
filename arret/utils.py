@@ -96,8 +96,8 @@ def flatten(x: Any) -> Any:
 
 def extract_unique_values(df: pd.DataFrame) -> set[Any]:
     """
-    Extracts unique values from a pandas DataFrame by recursively flattening values
-    across columns.
+    Extracts unique values from a data frame by recursively flattening values across
+    columns.
 
     :param df: A pandas DataFrame
     :return: A set of unique values from the DataFrame

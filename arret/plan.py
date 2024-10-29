@@ -61,15 +61,15 @@ def set_up_db(db: duckdb.DuckDBPyConnection) -> None:
     db.sql("""
         CREATE TABLE blobs (
             url VARCHAR,
-            name VARCHAR,
-            size UBIGINT,
-            updated TIMESTAMPTZ,
-            is_large BOOLEAN DEFAULT FALSE,
-            is_old BOOLEAN DEFAULT FALSE,
-            is_pipeline_logs BOOLEAN DEFAULT FALSE,
-            force_keep BOOLEAN DEFAULT FALSE,
-            in_data_table BOOLEAN DEFAULT FALSE,
-            to_delete BOOLEAN DEFAULT FALSE
+            name VARCHAR NOT NULL,
+            size UBIGINT NOT NULL,
+            updated TIMESTAMPTZ NOT NULL,
+            is_large BOOLEAN NOT NULL DEFAULT FALSE,
+            is_old BOOLEAN NOT NULL DEFAULT FALSE,
+            is_pipeline_logs BOOLEAN NOT NULL DEFAULT FALSE,
+            force_keep BOOLEAN NOT NULL DEFAULT FALSE,
+            in_data_table BOOLEAN NOT NULL DEFAULT FALSE,
+            to_delete BOOLEAN NOT NULL DEFAULT FALSE
         );
     """)
 
@@ -94,6 +94,8 @@ def read_inventory(
             '{inventory_path}' (FORMAT JSON);
     """)
 
+    # populate the `url` column, which will be used to check against data table cell
+    # values later
     db.execute(
         """
         UPDATE
@@ -103,6 +105,16 @@ def read_inventory(
     """,
         {"bucket_name": bucket_name},
     )
+
+    # can now add the proper column constraint for `url`
+    db.sql("""
+        ALTER TABLE
+            blobs
+        ALTER COLUMN
+            url
+        SET
+            NOT NULL;
+    """)
 
 
 def make_plan(
@@ -121,6 +133,7 @@ def make_plan(
     """
 
     logging.info("Making cleanup plan")
+
     db.execute(
         """
         UPDATE
