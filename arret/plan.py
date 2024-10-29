@@ -1,7 +1,6 @@
 import datetime
 import logging
 import os
-from pathlib import Path
 
 import pandas as pd
 
@@ -12,11 +11,23 @@ from arret.utils import human_readable_size
 def write_plan(
     workspace_namespace: str,
     workspace_name: str,
-    inventory_path: Path,
+    inventory_path: os.PathLike,
     days_considered_old: int,
     size_considered_large: int,
     timestamp_plan_file: bool,
 ) -> None:
+    """
+    Write a Parquet cleanup plan for a Terra workspace based on its inventory.
+
+    :param workspace_namespace: the namespace of the Terra workspace
+    :param workspace_name: the name of the Terra workspace
+    :param inventory_path: path to the inventory file
+    :param days_considered_old: number of days after which a file is considered old
+    :param size_considered_large: size threshold (in bytes) above which a file is
+    considered large
+    :param timestamp_plan_file: whether to include a timestamp in the plan's file name
+    """
+
     # get set of all gs:// URLs referenced in the workspace's data tables
     tw = TerraWorkspace(workspace_namespace, workspace_name)
     bucket_name = tw.get_bucket_name()
@@ -42,7 +53,14 @@ def write_plan(
     plan.to_parquet(plan_file)
 
 
-def read_inventory(inventory_path: Path | str, bucket_name: str) -> pd.DataFrame:
+def read_inventory(inventory_path: os.PathLike, bucket_name: str) -> pd.DataFrame:
+    """
+    Reads inventory data from a JSON file and constructs full URLs for each item.
+
+    :param inventory_path: Path to the inventory JSON file.
+    :param bucket_name: Name of the storage bucket.
+    """
+
     logging.info(f"Reading inventory from {inventory_path}")
     inv = pd.read_json(
         inventory_path, lines=True, dtype="string", encoding="utf-8", engine="pyarrow"
@@ -70,6 +88,16 @@ def make_plan(
     days_considered_old: int,
     size_considered_large: int,
 ) -> pd.DataFrame:
+    """
+    Generates a cleanup plan for a given inventory dataframe based on age and size
+    criteria.
+
+    :param inv: input inventory dataframe
+    :param days_considered_old: number of days after which a file is considered old
+    :param size_considered_large: size threshold (in bytes) above which a file is
+    considered large
+    """
+
     logging.info("Making cleanup plan")
     # indicate large files
     inv["is_large"] = inv["size"].gt(size_considered_large)

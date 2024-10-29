@@ -1,7 +1,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, wait
 from math import ceil
-from pathlib import Path
+from os import PathLike
 
 import pandas as pd
 from google.cloud import storage
@@ -13,10 +13,13 @@ from arret.utils import extract_unique_values
 def do_clean(
     workspace_namespace: str,
     workspace_name: str,
-    plan_file: Path,
+    plan_file: PathLike,
     gcp_project_id: str,
     other_workspaces: list[dict[str, str]],
 ) -> None:
+    # read in the cleanup plan
+    plan = pd.read_parquet(plan_file)
+
     # get the gs:// URLs referenced in relevant workspaces
     workspaces_to_check = [
         {"workspace_namespace": workspace_namespace, "workspace_name": workspace_name},
@@ -30,21 +33,14 @@ def do_clean(
         ]
     )
 
-    # read in the cleanup plan
-    plan = pd.read_parquet(plan_file)
+    # apply deletion logic
+    to_delete = apply_delete_logic(plan, gs_urls)
 
-    # prevent deleting files in any of the workspaces
-    plan["in_data_table"] = plan["gs_url"].isin(list(gs_urls))
-
-    plan["to_delete"] = (
-        ~plan["in_data_table"]
-        & ~plan["force_keep"]
-        & (plan["is_pipeline_logs"] | plan["is_old"] | plan["is_large"])
-    )
-
-    to_delete = plan.loc[
-        plan["to_delete"], ["name", "updated", "size", "gs_url"]
-    ].sort_values("size", ascending=False)
+    # make a GCS client and get the bucket we're deleting from
+    terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
+    bucket_name = terra_workspace.get_bucket_name()
+    storage_client = storage.Client(project=gcp_project_id)
+    bucket = storage_client.bucket(bucket_name, user_project=gcp_project_id)
 
     # create evenly-sized batches of URLs to delete (there's a max of 1000 operations
     # for a `storage.Client` batch context so do this outer layer of batching, too)
@@ -56,11 +52,7 @@ def do_clean(
         f"Deleting {n_blobs} blobs in {n_batches} batches of {batch_size} each"
     )
 
-    terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
-    bucket_name = terra_workspace.get_bucket_name()
-    storage_client = storage.Client(project=gcp_project_id)
-    bucket = storage_client.bucket(bucket_name, user_project=gcp_project_id)
-
+    # delete batches of blobs
     with ThreadPoolExecutor() as executor:
         futures = []
 
@@ -84,6 +76,14 @@ def do_clean(
 
 
 def get_gs_urls(workspace_namespace: str, workspace_name: str) -> set[str]:
+    """
+    Retrieve Google Cloud Storage (gs://) URLs from data tables in a Terra workspace.
+
+    :param workspace_namespace: namespace of the Terra workspace
+    :param workspace_name: name of the Terra workspace
+    :return: set of unique GCS URLs found in the data tables
+    """
+
     logging.info(
         f"Getting GCS URLs referenced in {workspace_namespace}/{workspace_name} data tables"
     )
@@ -104,6 +104,30 @@ def get_gs_urls(workspace_namespace: str, workspace_name: str) -> set[str]:
     return gs_urls
 
 
+def apply_delete_logic(plan: pd.DataFrame, gs_urls: set[str]) -> pd.DataFrame:
+    """
+    Apply deletion logic to a plan data frame.
+
+    :param plan: data frame containing arret plan
+    :param gs_urls: set of unique GCS URLs found in the data tables
+    :return: plan data frame filtered to just deletable blobs
+    """
+
+    # prevent deleting files in any of the referenced workspaces
+    plan["in_data_table"] = plan["gs_url"].isin(list(gs_urls))
+
+    # apply standard logic
+    plan["to_delete"] = (
+        ~plan["in_data_table"]
+        & ~plan["force_keep"]
+        & (plan["is_pipeline_logs"] | plan["is_old"] | plan["is_large"])
+    )
+
+    return plan.loc[
+        plan["to_delete"], ["name", "updated", "size", "gs_url"]
+    ].sort_values("size", ascending=False)
+
+
 def delete_batch(
     batch: list[str],
     i: int,
@@ -111,6 +135,16 @@ def delete_batch(
     storage_client: storage.Client,
     bucket=storage.Bucket,
 ) -> None:
+    """
+    Delete a batch of blobs from a GCS bucket.
+
+    :param batch: list of blob names to delete
+    :param i: current batch index
+    :param n_batches: total number of batches
+    :param storage_client: GCS client for storage operations
+    :param bucket: bucket containing the blobs
+    """
+
     logging.info(f"Deleting batch {i+1} of {n_batches}")
 
     with storage_client.batch(raise_exception=False):

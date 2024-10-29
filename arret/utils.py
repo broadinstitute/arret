@@ -77,9 +77,16 @@ def maybe_retry(
 
 
 def flatten(x: Any) -> Any:
+    """
+    Recursively flattens a nested sequence or dictionary into a single, flat iterable.
+
+    :param x: the input to be flattened
+    :return: an iterator that yields each element of the input in a flattened format
+    """
+
     if isinstance(x, dict):
-        for k, v in x.items():
-            yield from flatten(v)
+        for key, value in x.items():
+            yield from flatten(value)
     elif isinstance(x, list):
         for item in x:
             yield from flatten(item)
@@ -88,6 +95,14 @@ def flatten(x: Any) -> Any:
 
 
 def extract_unique_values(df: pd.DataFrame) -> set[Any]:
+    """
+    Extracts unique values from a pandas DataFrame by recursively flattening values
+    across columns.
+
+    :param df: A pandas DataFrame
+    :return: A set of unique values from the DataFrame
+    """
+
     unique_values = set()
 
     for c in df.columns:
@@ -99,6 +114,13 @@ def extract_unique_values(df: pd.DataFrame) -> set[Any]:
 
 
 def human_readable_size(size: float) -> str:
+    """
+    Convert a file size in bytes to a more human-readable format.
+
+    :param size: a file size in bytes
+    :return: a human-readable representation of the file size
+    """
+
     units = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
 
     for unit in units:
