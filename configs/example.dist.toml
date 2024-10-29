@@ -9,6 +9,6 @@ other_workspaces = [
 
 [plan]
 inventory_path = "./data/inventories/inventory.ndjson"
-plan_path = "./data/plans/plan.parquet"
+plan_path = "./data/plans/plan.duckdb"
 days_considered_old = 30
-size_considered_large = 1e6
+bytes_considered_large = 1e6

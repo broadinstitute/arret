@@ -14,7 +14,7 @@ def write_plan(
     inventory_path: str,
     plan_path: str,
     days_considered_old: int,
-    size_considered_large: int,
+    bytes_considered_large: int,
 ) -> None:
     """
     Write a cleanup plan for a Terra workspace based on its inventory.
@@ -24,7 +24,7 @@ def write_plan(
     :param inventory_path: path to the inventory .ndjson file
     :param plan_path: path to write plan .duckdb file
     :param days_considered_old: number of days after which a file is considered old
-    :param size_considered_large: size threshold (in bytes) above which a file is
+    :param bytes_considered_large: size threshold (in bytes) above which a file is
     considered large
     """
 
@@ -43,7 +43,7 @@ def write_plan(
 
         # load the bucket inventory into the DB and make a cleanup plan
         read_inventory(db, inventory_path, bucket_name)
-        make_plan(db, days_considered_old, size_considered_large)
+        make_plan(db, days_considered_old, bytes_considered_large)
 
         total_size = db.table("blobs").sum("size").fetchone()[0]  # pyright: ignore
         logging.info(f"Total size: {human_readable_size(total_size)}")
@@ -108,7 +108,7 @@ def read_inventory(
 def make_plan(
     db: duckdb.DuckDBPyConnection,
     days_considered_old: int,
-    size_considered_large: int,
+    bytes_considered_large: int,
 ) -> None:
     """
     Generates a cleanup plan for a given inventory dataframe based on age and size
@@ -116,7 +116,7 @@ def make_plan(
 
     :param db: the DuckDB database
     :param days_considered_old: number of days after which a file is considered old
-    :param size_considered_large: size threshold (in bytes) above which a file is
+    :param bytes_considered_large: size threshold (in bytes) above which a file is
     considered large
     """
 
@@ -127,7 +127,7 @@ def make_plan(
             blobs
         SET
             -- indicate large files
-            is_large = size > $size_considered_large,
+            is_large = size > $bytes_considered_large,
             -- indicate old files
             is_old = updated < $date_considered_new,
             -- indicate paths pipeline-logs folder, which are redundant with task logs
@@ -137,7 +137,7 @@ def make_plan(
             force_keep = name LIKE '%.log' OR name LIKE '/script';
     """,
         {
-            "size_considered_large": size_considered_large,
+            "bytes_considered_large": bytes_considered_large,
             "date_considered_new": pd.Timestamp.now()
             - pd.Timedelta(days=days_considered_old),
         },

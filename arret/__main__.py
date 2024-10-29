@@ -70,7 +70,7 @@ def plan(ctx: typer.Context) -> None:
         inventory_path=ctx.obj["plan"]["inventory_path"],
         plan_path=ctx.obj["plan"]["plan_path"],
         days_considered_old=ctx.obj["plan"]["days_considered_old"],
-        size_considered_large=ctx.obj["plan"]["size_considered_large"],
+        bytes_considered_large=ctx.obj["plan"]["bytes_considered_large"],
     )
 
 
