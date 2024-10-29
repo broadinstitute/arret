@@ -2,15 +2,14 @@ import json
 import logging
 import random
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from os import PathLike
-from queue import Queue
 from time import sleep
 
 from google.api_core.page_iterator import Page
 from google.cloud import storage
 
 from arret.terra import TerraWorkspace
+from arret.utils import BoundedThreadPoolExecutor
 
 
 class InventoryGenerator:
@@ -97,16 +96,3 @@ class InventoryGenerator:
         with self.counter_lock:
             self.n_blobs_written += len(blob_lines)
             logging.info(f"{self.n_blobs_written} blob records written.")
-
-
-class BoundedThreadPoolExecutor(ThreadPoolExecutor):
-    def __init__(self, *args, queue_size: int, **kwargs):
-        """
-        Subclass the default `ThreadPoolExecutor` to use a `Queue` instead of a
-        `SimpleQueue` so that the pool size cannot grow beyond the requested queue size.
-
-        :param queue_size: number of jobs to keep in the thread pool
-        """
-
-        super().__init__(*args, **kwargs)
-        self._work_queue = Queue(queue_size)  # type: ignore

@@ -1,6 +1,8 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from math import sqrt
+from queue import Queue
 from time import sleep
 from typing import Any, Callable, ParamSpec, Type, TypeVar
 
@@ -129,3 +131,16 @@ def human_readable_size(size: float) -> str:
         size /= 1024.0
 
     return f"{size:.2f} YB"
+
+
+class BoundedThreadPoolExecutor(ThreadPoolExecutor):
+    def __init__(self, *args, queue_size: int, **kwargs):
+        """
+        Subclass the default `ThreadPoolExecutor` to use a `Queue` instead of a
+        `SimpleQueue` so that the pool size cannot grow beyond the requested queue size.
+
+        :param queue_size: number of jobs to keep in the thread pool
+        """
+
+        super().__init__(*args, **kwargs)
+        self._work_queue = Queue(queue_size)  # type: ignore

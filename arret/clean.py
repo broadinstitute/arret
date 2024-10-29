@@ -1,13 +1,14 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor, wait
+import random
 from math import ceil
+from time import sleep
 
 import duckdb
 import pandas as pd
 from google.cloud import storage
 
 from arret.terra import TerraWorkspace
-from arret.utils import extract_unique_values
+from arret.utils import BoundedThreadPoolExecutor, extract_unique_values
 
 
 def do_clean(
@@ -16,6 +17,7 @@ def do_clean(
     plan_path: str,
     gcp_project_id: str,
     other_workspaces: list[dict[str, str]],
+    n_workers: int = 2,
 ) -> None:
     """
     Clean the Terra workspace's bucket using previously generated plan database.
@@ -26,6 +28,7 @@ def do_clean(
     :param gcp_project_id: the ID of a GCP project to use for the storage client
     :param other_workspaces: a list of dictionaries containing workspace namespaces and
     names for other Terra workspaces to check for blob usage
+    :param n_workers: number of workers/threads
     """
 
     # get the gs:// URLs referenced in relevant workspaces
@@ -69,26 +72,22 @@ def do_clean(
     )
 
     # delete batches of blobs
-    with ThreadPoolExecutor() as executor:
-        futures = []
-
+    with BoundedThreadPoolExecutor(queue_size=n_workers * 2) as executor:
         for i in range(0, n_batches):
             batch = list(
                 blobs_to_delete[(i * batch_size) : (i * batch_size + batch_size)]
             )
 
-            futures.append(
-                executor.submit(
-                    delete_batch,
-                    batch=batch,
-                    i=i,
-                    n_batches=n_batches,
-                    storage_client=storage_client,
-                    bucket=bucket,  # pyright: ignore
-                )
+            executor.submit(
+                delete_batch,
+                batch=batch,
+                i=i,
+                n_batches=n_batches,
+                storage_client=storage_client,
+                bucket=bucket,  # pyright: ignore
             )
 
-        wait(futures)
+            sleep(random.uniform(0.01, 0.03))  # calm the thundering herd
 
 
 def get_gs_urls(workspace_namespace: str, workspace_name: str) -> set[str]:
