@@ -70,21 +70,22 @@ def plan(ctx: typer.Context) -> None:
         workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
         workspace_name=ctx.obj["terra"]["workspace_name"],
         inventory_path=ctx.obj["plan"]["inventory_path"],
+        plan_path=ctx.obj["plan"]["plan_path"],
         days_considered_old=ctx.obj["plan"]["days_considered_old"],
         size_considered_large=ctx.obj["plan"]["size_considered_large"],
     )
 
 
 @app.command()
-def clean(
-    ctx: typer.Context, plan_file: Annotated[Path, typer.Option(exists=True)]
-) -> None:
+def clean(ctx: typer.Context) -> None:
     do_clean(
         workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
         workspace_name=ctx.obj["terra"]["workspace_name"],
-        plan_file=plan_file,
+        plan_path=ctx.obj["plan"]["plan_path"],
         gcp_project_id=ctx.obj["gcp_project_id"],
-        other_workspaces=ctx.obj["terra"]["other_workspaces"],
+        other_workspaces=ctx.obj["terra"]["other_workspaces"]
+        if "other_workspaces" in ctx.obj["terra"]
+        else [],
     )
 
 

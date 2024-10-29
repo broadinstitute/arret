@@ -1,8 +1,8 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, wait
 from math import ceil
-from os import PathLike
 
+import duckdb
 import pandas as pd
 from google.cloud import storage
 
@@ -13,12 +13,20 @@ from arret.utils import extract_unique_values
 def do_clean(
     workspace_namespace: str,
     workspace_name: str,
-    plan_file: PathLike,
+    plan_path: str,
     gcp_project_id: str,
     other_workspaces: list[dict[str, str]],
 ) -> None:
-    # read in the cleanup plan
-    plan = pd.read_parquet(plan_file)
+    """
+    Clean the Terra workspace's bucket using previously generated plan database.
+
+    :param workspace_namespace: the namespace of the Terra workspace
+    :param workspace_name: the name of the Terra workspace
+    :param plan_path: path to existing plan .duckdb file
+    :param gcp_project_id: the ID of a GCP project to use for the storage client
+    :param other_workspaces: a list of dictionaries containing workspace namespaces and
+    names for other Terra workspaces to check for blob usage
+    """
 
     # get the gs:// URLs referenced in relevant workspaces
     workspaces_to_check = [
@@ -34,7 +42,15 @@ def do_clean(
     )
 
     # apply deletion logic
-    to_delete = apply_delete_logic(plan, gs_urls)
+    with duckdb.connect(plan_path) as db:
+        apply_delete_logic(db, gs_urls)
+        blobs_to_delete = (
+            db.table("blobs").filter("to_delete")["name"].fetchdf()["name"].tolist()
+        )
+
+    if len(blobs_to_delete) == 0:
+        logging.info("No blobs to delete")
+        exit(0)
 
     # make a GCS client and get the bucket we're deleting from
     terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
@@ -44,7 +60,7 @@ def do_clean(
 
     # create evenly-sized batches of URLs to delete (there's a max of 1000 operations
     # for a `storage.Client` batch context so do this outer layer of batching, too)
-    n_blobs = len(to_delete)
+    n_blobs = len(blobs_to_delete)
     max_batch_size = 1000
     n_batches = 1 + n_blobs // max_batch_size
     batch_size = ceil(n_blobs / n_batches)
@@ -58,7 +74,7 @@ def do_clean(
 
         for i in range(0, n_batches):
             batch = list(
-                to_delete["name"].iloc[(i * batch_size) : (i * batch_size + batch_size)]
+                blobs_to_delete[(i * batch_size) : (i * batch_size + batch_size)]
             )
 
             futures.append(
@@ -104,28 +120,31 @@ def get_gs_urls(workspace_namespace: str, workspace_name: str) -> set[str]:
     return gs_urls
 
 
-def apply_delete_logic(plan: pd.DataFrame, gs_urls: set[str]) -> pd.DataFrame:
+def apply_delete_logic(db: duckdb.DuckDBPyConnection, gs_urls: set[str]) -> None:
     """
     Apply deletion logic to a plan data frame.
 
-    :param plan: data frame containing arret plan
+    :param db: the DuckDB database
     :param gs_urls: set of unique GCS URLs found in the data tables
-    :return: plan data frame filtered to just deletable blobs
     """
 
-    # prevent deleting files in any of the referenced workspaces
-    plan["in_data_table"] = plan["gs_url"].isin(list(gs_urls))
+    gs_urls_df = pd.DataFrame({"url": list(gs_urls)})
+    db.register("gs_urls_df", gs_urls_df)
 
-    # apply standard logic
-    plan["to_delete"] = (
-        ~plan["in_data_table"]
-        & ~plan["force_keep"]
-        & (plan["is_pipeline_logs"] | plan["is_old"] | plan["is_large"])
-    )
+    db.sql("""
+        UPDATE
+            blobs
+        SET
+            in_data_table = url IN (SELECT url FROM gs_urls_df);
+    """)
 
-    return plan.loc[
-        plan["to_delete"], ["name", "updated", "size", "gs_url"]
-    ].sort_values("size", ascending=False)
+    db.sql("""
+        UPDATE
+            blobs
+        SET
+            to_delete = (is_pipeline_logs OR is_old OR is_large)
+            AND NOT (in_data_table OR force_keep);
+    """)
 
 
 def delete_batch(
