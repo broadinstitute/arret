@@ -21,12 +21,20 @@ class InventoryGenerator:
         gcp_project_id: str,
         out_file: PathLike,
         n_workers: int = 2,
-        work_queue_size: int = 1000,
     ):
+        """
+        Write a new line-delimited JSON file of a Terra Workspace's GCS bucket.
+
+        :param workspace_namespace: the namespace of the Terra workspace
+        :param workspace_name: the name of the Terra workspace
+        :param gcp_project_id: the ID of a GCP project to use for the storage client
+        :param out_file: a path for the output .ndjson inventory file
+        :param n_workers: number of workers/threads
+        """
+
         self.gcp_project_id = gcp_project_id
         self.out_file = out_file
         self.n_workers = n_workers
-        self.work_queue_size = work_queue_size
 
         terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
         bucket_name = terra_workspace.get_bucket_name()
@@ -43,9 +51,12 @@ class InventoryGenerator:
             pass  # truncate
 
     def write_inventory(self) -> None:
-        # Use remaining configured workers, or at least 2, for this part
+        """
+        Generate the inventory using a bounded thread pool executor.
+        """
+
         with BoundedThreadPoolExecutor(
-            max_workers=self.n_workers, queue_size=int(self.work_queue_size * 0.25)
+            max_workers=self.n_workers, queue_size=self.n_workers * 2
         ) as executor:
             blobs = self.storage_client.list_blobs(
                 self.bucket,
@@ -58,6 +69,12 @@ class InventoryGenerator:
                 sleep(random.uniform(0.01, 0.03))  # calm the thundering herd
 
     def write_page_of_blobs(self, page: Page) -> None:
+        """
+        Write a page of blob metadata to the output file.
+
+        :param page: a page of listed blobs
+        """
+
         blob_lines = [
             json.dumps(
                 {
@@ -70,22 +87,25 @@ class InventoryGenerator:
             for x in page
         ]
 
+        # prevent concurrent writes to output file
         with self.file_lock:
             with open(self.out_file, "a") as f:
                 f.writelines(blob_lines)
 
+        # update global count of blobs written
         with self.counter_lock:
             self.n_blobs_written += len(blob_lines)
             logging.info(f"{self.n_blobs_written} blob records written.")
 
 
 class BoundedThreadPoolExecutor(ThreadPoolExecutor):
-    def __init__(self, *args, queue_size: int = 100, **kwargs):
-        """Construct a slightly modified ThreadPoolExecutor with a
-        bounded queue for work. Causes submit() to block when full.
-
-        Arguments:
-            ThreadPoolExecutor {[type]} -- [description]
+    def __init__(self, *args, queue_size: int, **kwargs):
         """
+        Subclass the default `ThreadPoolExecutor` to use a `Queue` instead of a
+        `SimpleQueue` so that the pool size cannot grow beyond the requested queue size.
+
+        :param queue_size: number of jobs to keep in the thread pool
+        """
+
         super().__init__(*args, **kwargs)
         self._work_queue = Queue(queue_size)  # type: ignore

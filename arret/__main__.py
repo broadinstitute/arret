@@ -50,7 +50,6 @@ def main(
 def inventory(
     ctx: typer.Context,
     n_workers: Annotated[int, typer.Option()] = psutil.cpu_count(),
-    work_queue_size: Annotated[int, typer.Option()] = 1000,
 ) -> None:
     ig = InventoryGenerator(
         workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
@@ -58,7 +57,6 @@ def inventory(
         gcp_project_id=ctx.obj["gcp_project_id"],
         out_file=ctx.obj["plan"]["inventory_path"],
         n_workers=n_workers,
-        work_queue_size=work_queue_size,
     )
 
     ig.write_inventory()
