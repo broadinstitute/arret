@@ -131,7 +131,8 @@ def apply_delete_logic(db: duckdb.DuckDBPyConnection, gs_urls: set[str]) -> None
     ...except when either of the following is true:
         - blob is referenced in a Terra data table in the workspace of interest or any
         of the `other_workspaces`
-        - blob is forcibly kept (i.e. it's a script or .log file)
+        - blob is forcibly kept for recordkeeping purposes (i.e. it's a `script` or
+        `.log` file)
 
     :param db: the DuckDB database
     :param gs_urls: set of unique GCS URLs found in the data tables

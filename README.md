@@ -60,5 +60,6 @@ true:
 - blob is inside a `/pipelines-logs/` folder
 
 ...**except** when either of the following is true:
+
 - blob is referenced in a Terra data table in the workspace of interest or any of the `other_workspaces`
-- blob is forcibly kept (i.e. it's a `script` or `.log` file)
+- blob is forcibly kept for recordkeeping purposes (i.e. it's a `script` or `.log` file)
