@@ -33,9 +33,8 @@ def do_submit_to_gcp_batch(
     :param other_workspaces: a list of dictionaries containing workspace namespaces and
     names for other Terra workspaces to check for blob usage
     :param gcp_project_id: a GCP project ID
-    :param region: a GCP region name
-    :param zone: a GCP zone name
-    :param zone: the GCP zone to query (e.g. "us-central1-a")
+    :param region: the GCP region name to run the batch job in
+    :param zone: the GCP zone (e.g. "us-central1-a") to query for machine type info
     :param machine_type: the name of the machine type (e.g. "n2-highcpu-4")
     :param boot_disk_mib: the size of the boot disk in MiB
     :param max_run_seconds: maximum runtime of the job in seconds
@@ -173,7 +172,7 @@ def get_machine_type_info(
     Look up a GCP machine type and get its CPU and memory.
 
     :param gcp_project_id: a GCP project ID
-    :param zone: the GCP zone to query (e.g. "us-central1-a")
+    :param zone: the GCP zone (e.g. "us-central1-a") to query for machine type info
     :param machine_type: the name of the machine type (e.g. "n2-highcpu-4")
     :return: number of CPUs and memory (in MiB) for the machine type
     """

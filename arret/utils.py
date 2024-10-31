@@ -159,10 +159,27 @@ def get_gcp_oidc_token() -> str:
     auth_req = google.auth.transport.requests.Request()  # type: ignore
 
     token = id_token.fetch_id_token(  # type: ignore
-        auth_req, "https://cloudfunctions.googleapis.com"
+        auth_req, "https://batch.googleapis.com"
     )
 
     if token is None:
         raise ValueError("GCP auth token cannot be None")
 
     return token
+
+
+def split_workspace_names(other_workspaces: list[str]) -> list[dict[str, str]]:
+    """
+    Split "namespace/name" Terra workspace identifiers passed as the `other-workspaces`
+    CLI option into dictionaries.
+
+    :param other_workspaces: a list of "namespace/name" Terra workspace identifiers
+    :return: a list of structured namespace/name dictionaries
+    """
+
+    other_workspaces_dicts = [
+        {"workspace_namespace": x1, "workspace_name": x2}
+        for x in other_workspaces
+        for x1, x2 in [x.split("/")]
+    ]
+    return other_workspaces_dicts
