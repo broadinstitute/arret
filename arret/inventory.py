@@ -5,6 +5,7 @@ import threading
 from os import PathLike
 from time import sleep
 
+import psutil
 from google.api_core.page_iterator import Page
 from google.cloud import storage
 
@@ -18,8 +19,7 @@ class InventoryGenerator:
         workspace_namespace: str,
         workspace_name: str,
         gcp_project_id: str,
-        out_file: PathLike,
-        n_workers: int = 2,
+        inventory_path: PathLike,
     ):
         """
         Write a new line-delimited JSON file containing metadata for all blobs in a
@@ -27,17 +27,17 @@ class InventoryGenerator:
 
         :param workspace_namespace: the namespace of the Terra workspace
         :param workspace_name: the name of the Terra workspace
-        :param gcp_project_id: the ID of a GCP project to use for the storage client
-        :param out_file: a path for the output .ndjson inventory file
-        :param n_workers: number of workers/threads
+        :param gcp_project_id: a GCP project ID
+        :param inventory_path: a path for the output .ndjson inventory file
         """
 
         self.gcp_project_id = gcp_project_id
-        self.out_file = out_file
-        self.n_workers = n_workers
+        self.inventory_path = inventory_path
+        self.n_workers = psutil.cpu_count()
 
         terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
         bucket_name = terra_workspace.get_bucket_name()
+
         self.storage_client = storage.Client(project=self.gcp_project_id)
         self.bucket = self.storage_client.bucket(
             bucket_name, user_project=self.gcp_project_id
@@ -47,7 +47,7 @@ class InventoryGenerator:
         self.counter_lock = threading.Lock()
         self.n_blobs_written = 0
 
-        with open(self.out_file, "w"):
+        with open(self.inventory_path, "w"):
             pass  # truncate
 
     def write_inventory(self) -> None:
@@ -89,7 +89,7 @@ class InventoryGenerator:
 
         # prevent concurrent writes to output file
         with self.file_lock:
-            with open(self.out_file, "a") as f:
+            with open(self.inventory_path, "a") as f:
                 f.writelines(blob_lines)
 
         # update global count of blobs written

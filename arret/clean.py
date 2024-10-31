@@ -5,6 +5,7 @@ from time import sleep
 
 import duckdb
 import pandas as pd
+import psutil
 from google.cloud import storage
 
 from arret.terra import TerraWorkspace
@@ -17,7 +18,6 @@ def do_clean(
     plan_path: str,
     gcp_project_id: str,
     other_workspaces: list[dict[str, str]],
-    n_workers: int = 2,
 ) -> None:
     """
     Clean the Terra workspace's bucket using previously generated plan database.
@@ -25,10 +25,9 @@ def do_clean(
     :param workspace_namespace: the namespace of the Terra workspace
     :param workspace_name: the name of the Terra workspace
     :param plan_path: path to existing plan .duckdb file
-    :param gcp_project_id: the ID of a GCP project to use for the storage client
+    :param gcp_project_id: a GCP project ID
     :param other_workspaces: a list of dictionaries containing workspace namespaces and
     names for other Terra workspaces to check for blob usage
-    :param n_workers: number of workers/threads
     """
 
     # get the gs:// URLs referenced in relevant workspaces
@@ -53,7 +52,7 @@ def do_clean(
 
     if len(blobs_to_delete) == 0:
         logging.info("No blobs to delete")
-        exit(0)
+        return
 
     # make a GCS client and get the bucket we're deleting from
     terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
@@ -72,7 +71,7 @@ def do_clean(
     )
 
     # delete batches of blobs
-    with BoundedThreadPoolExecutor(queue_size=n_workers * 2) as executor:
+    with BoundedThreadPoolExecutor(queue_size=psutil.cpu_count() * 2) as executor:
         for i in range(0, n_batches):
             batch = list(
                 blobs_to_delete[(i * batch_size) : (i * batch_size + batch_size)]
