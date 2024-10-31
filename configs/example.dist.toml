@@ -12,3 +12,13 @@ inventory_path = "./data/inventories/inventory.ndjson"
 plan_path = "./data/plans/plan.duckdb"
 days_considered_old = 30
 bytes_considered_large = 1e6
+
+[batch]
+region = "us-central1"
+zone = "us-central1-a" # used only to look up CPU and memory for the `machine_type`
+machine_type = "n2-highcpu-4"
+boot_disk_mib = 20000 # should be large enough to accommodate the bucket inventory file
+max_run_seconds = 1200
+provisioning_model = "STANDARD" # or, e.g., "SPOT"
+service_account_email = "" # see README
+container_image_uri = "docker.io/dmccabe606/arret:latest"

@@ -33,33 +33,67 @@ This repo expects that your default `GOOGLE_APPLICATION_CREDENTIALS` authorizes 
 
 # Running
 
-1. Fill out a new config file based on `configs/example.dist.toml` and generate a bucket inventory:
+The `arret local` CLI app requires just a single named argument for the path to a config file. See `configs/example.dist.toml` for an example.
+
+All the steps can be run in sequence:
 ```shell
-poetry run -m arret --config-path="./configs/your_config.toml" inventory
+poetry run python -m arret local --config-path="./configs/your_config.toml" run-all
+```
+
+## Steps
+
+Alternatively, the steps can be run individually: 
+
+### 1. Inventory
+
+```shell
+poetry run python -m arret local --config-path="./configs/your_config.toml" inventory
 ```
 
 This will create an `.ndjson` file containing name, size, and updated datetime for all the blobs in the GCS bucket.
 
-2. Generate a cleanup plan:
+### 2. Plan
+
 ```shell
-poetry run -m arret --config-path="./configs/your_config.toml" plan
+poetry run python -m arret local --config-path="./configs/your_config.toml" plan
 ```
 
 This loads the generated inventory and stores it as a DuckDB database, with additional columns indicating whether blobs are large, old, etc.
 
-3. Do the cleanup:
+### 3. Clean
+
 ```shell
-poetry run -m arret --config-path="./configs/your_config.toml" clean
+poetry run python -m arret local --config-path="./configs/your_config.toml" clean
 ```
 
 This reopens the DuckDB and collects blobs to be deleted. It will delete a blob if any of the following is
 true:
-
 - blob is old (based on `days_considered_old`)
 - blob is large (based on `bytes_considered_large`)
 - blob is inside a `/pipelines-logs/` folder
 
 ...**except** when either of the following is true:
-
 - blob is referenced in a Terra data table in the workspace of interest or any of the `other_workspaces`
 - blob is forcibly kept for recordkeeping purposes (i.e. it's a `script` or `.log` file)
+
+This logic can be changed easily by modifying the `apply_delete_logic` function.
+
+## Runtime
+
+Since inventory generation and blob deletion can take a long time, these steps are multithreaded. Even with many threads available, though, running arret might still take several hours if the Terra workspace has thousands of job submissions. Terra generates lots of small files (especially redundant logs) that must be iterated every time the `inventory` step runs. One source is a workflow's `/pipelines-logs/` folder, which arret deletes, so subsequent runs will be nominally faster.
+
+## Remote execution on GCP Batch
+
+To aid in automation and reduce runtime, the `run-all` command can also be run submitted as a [GCP Batch](https://cloud.google.com/batch/docs/get-started) job:
+
+```shell
+poetry run python -m arret local --config-path="./configs/your_config.toml" submit-to-gcp-batch
+```
+
+The `[batch]` section in the config file must be filled out to run `submit-to-gcp-batch`. This requires having already created a GCP service account with at least these IAM permissions:
+- Batch Agent Reporter 
+- Logs Writer
+- Service Usage Consumer
+- Storage Object Admin
+
+The service account must also [be registered in Terra and belong to a Terra group](https://support.terra.bio/hc/en-us/articles/7448594459931-How-to-use-a-service-account-in-Terra) that has write access to the workspace you're cleaning and read access to workspaces listed in `other_workspaces`.

@@ -57,6 +57,10 @@ def main(
 
 @local_app.command()
 def inventory(ctx: typer.Context) -> None:
+    """
+    Generate a .ndjson file of blob metadata for a Terra workspace's GCS bucket.
+    """
+
     ig = InventoryGenerator(
         workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
         workspace_name=ctx.obj["terra"]["workspace_name"],
@@ -69,6 +73,11 @@ def inventory(ctx: typer.Context) -> None:
 
 @local_app.command()
 def plan(ctx: typer.Context) -> None:
+    """
+    Read the .ndjson inventory file into a DuckDB database and indicate blobs that are
+    old, large, forcibly kept, etc.
+    """
+
     write_plan(
         workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
         workspace_name=ctx.obj["terra"]["workspace_name"],
@@ -81,6 +90,10 @@ def plan(ctx: typer.Context) -> None:
 
 @local_app.command()
 def clean(ctx: typer.Context) -> None:
+    """
+    Read the DuckDB plan database and delete all files indicated as deletable.
+    """
+
     do_clean(
         workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
         workspace_name=ctx.obj["terra"]["workspace_name"],
@@ -94,6 +107,10 @@ def clean(ctx: typer.Context) -> None:
 
 @local_app.command()
 def run_all(ctx: typer.Context) -> None:
+    """
+    Run all arret steps (inventory, plan, clean) in sequence.
+    """
+
     inventory(ctx)
     plan(ctx)
     clean(ctx)
@@ -101,6 +118,10 @@ def run_all(ctx: typer.Context) -> None:
 
 @local_app.command()
 def submit_to_gcp_batch(ctx: typer.Context) -> None:
+    """
+    Submit a job to GCP Batch to run all of the arret steps.
+    """
+
     do_submit_to_gcp_batch(
         workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
         workspace_name=ctx.obj["terra"]["workspace_name"],
@@ -132,6 +153,11 @@ def run_all(
     bytes_considered_large: Annotated[int, typer.Option()],
     other_workspaces: Annotated[list[str], typer.Option()],
 ) -> None:
+    """
+    Run all arret steps (inventory, plan, clean) in sequence, without the need for a
+    config TOML file. This can be used as a GCP Batch task.
+    """
+
     ig = InventoryGenerator(
         workspace_namespace=workspace_namespace,
         workspace_name=workspace_name,
