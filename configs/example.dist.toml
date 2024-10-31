@@ -7,11 +7,16 @@ other_workspaces = [
     { "workspace_namespace" = "",  "workspace_name" = "" }
 ] # optional
 
-[plan]
+[inventory]
 inventory_path = "./data/inventories/inventory.ndjson"
+
+[plan]
 plan_path = "./data/plans/plan.duckdb"
 days_considered_old = 30 # can be 0
 bytes_considered_large = 1e6 # can be 0
+
+[clean]
+to_delete_sql = "is_pipeline_logs OR is_old OR is_large"
 
 [batch]
 region = "us-central1"

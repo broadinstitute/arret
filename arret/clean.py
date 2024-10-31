@@ -18,6 +18,7 @@ def do_clean(
     plan_path: str,
     gcp_project_id: str,
     other_workspaces: list[dict[str, str]],
+    to_delete_sql: str,
 ) -> None:
     """
     Clean the Terra workspace's bucket using previously generated plan database.
@@ -28,6 +29,7 @@ def do_clean(
     :param gcp_project_id: a GCP project ID
     :param other_workspaces: a list of dictionaries containing workspace namespaces and
     names for other Terra workspaces to check for blob usage
+    :param to_delete_sql: the SQL string to use for assigning `to_delete`
     """
 
     # get the gs:// URLs referenced in relevant workspaces
@@ -45,7 +47,7 @@ def do_clean(
 
     # apply deletion logic
     with duckdb.connect(plan_path) as db:
-        apply_delete_logic(db, gs_urls)
+        apply_delete_logic(db, gs_urls, to_delete_sql)
         blobs_to_delete = (
             db.table("blobs").filter("to_delete")["name"].fetchdf()["name"].tolist()
         )
@@ -118,10 +120,12 @@ def get_gs_urls(workspace_namespace: str, workspace_name: str) -> set[str]:
     return gs_urls
 
 
-def apply_delete_logic(db: duckdb.DuckDBPyConnection, gs_urls: set[str]) -> None:
+def apply_delete_logic(
+    db: duckdb.DuckDBPyConnection, gs_urls: set[str], to_delete_sql: str
+) -> None:
     """
     Apply deletion logic to a plan data frame: Delete a blob if any of the following is
-    true:
+    true (for default logic):
 
         - blob is old (based on `days_considered_old`)
         - blob is large (based on `bytes_considered_large`)
@@ -135,6 +139,7 @@ def apply_delete_logic(db: duckdb.DuckDBPyConnection, gs_urls: set[str]) -> None
 
     :param db: the DuckDB database
     :param gs_urls: set of unique GCS URLs found in the data tables
+    :param to_delete_sql: the SQL string to use for assigning `to_delete`
     """
 
     # register set of data table gs:// URLs as a DuckDB table
@@ -148,11 +153,11 @@ def apply_delete_logic(db: duckdb.DuckDBPyConnection, gs_urls: set[str]) -> None
             in_data_table = url IN (SELECT url FROM data_table_urls);
     """)
 
-    db.sql("""
+    db.sql(f"""
         UPDATE
             blobs
         SET
-            to_delete = (is_pipeline_logs OR is_old OR is_large)
+            to_delete = ({to_delete_sql})
             AND NOT (in_data_table OR force_keep);
     """)
 

@@ -5,7 +5,7 @@ Inspired by [automop](https://github.com/broadinstitute/automop/), this tool del
 
 It will delete objects in the bucket that are redundant (e.g. `pipelines-logs/*`), older than a specified date, or larger than a specified size. In order to prevent deleting "active" files, however, any file with a `gs://` URL referenced in any data table in the Terra workspace (or other specified workspaces) will not be deleted.
 
-# Installation
+# Recommended installation
 
 1. Install the required system dependencies:
     - [pyenv](https://github.com/pyenv/pyenv)
@@ -27,7 +27,7 @@ It will delete objects in the bucket that are redundant (e.g. `pipelines-logs/*`
    poetry install
    ```
 
-A `requirements.txt` file is also available and kept in sync with Poetry dependencies in case you don't want to use Poetry.
+A `requirements.txt` file is also available and kept in sync with Poetry dependencies in case you don't want to use Poetry, or you can use arret via docker: `docker pull dmccabe606/arret:latest`.
 
 This repo expects that your default `GOOGLE_APPLICATION_CREDENTIALS` authorizes write access to the Terra workspace (and its bucket).
 
@@ -42,14 +42,19 @@ gcp_project_id = ""
 workspace_namespace = ""
 workspace_name = ""
 other_workspaces = [
-    { "workspace_namespace" = "",  "workspace_name" = "" }
+   { "workspace_namespace" = "",  "workspace_name" = "" }
 ] # optional
 
-[plan]
+[inventory]
 inventory_path = "./data/inventories/inventory.ndjson"
+
+[plan]
 plan_path = "./data/plans/plan.duckdb"
 days_considered_old = 30 # can be 0
 bytes_considered_large = 1e6 # can be 0
+
+[clean]
+to_delete_sql = "is_pipeline_logs OR is_old OR is_large"
 
 [batch]
 region = "us-central1"
@@ -93,8 +98,7 @@ This loads the generated inventory and stores it as a DuckDB database, with addi
 poetry run python -m arret --config-path="./configs/your_config.toml" clean
 ```
 
-This reopens the DuckDB and collects blobs to be deleted. It will delete a blob if _any_ of the following is
-true:
+This reopens the DuckDB and collects blobs to be deleted. It will delete a blob if _any_ of the following is true (this logic can be changed easily by modifying the `to_delete_sql` SQL string):
 - blob is old (based on `days_considered_old`)
 - blob is large (based on `bytes_considered_large`)
 - blob is inside a `/pipelines-logs/` folder
@@ -102,8 +106,6 @@ true:
 ...except when _any_ of the following is true:
 - blob is referenced in any Terra data table in the workspace of interest or any of the `other_workspaces`
 - blob is forcibly kept for recordkeeping purposes (i.e. it's a `script` or `.log` file)
-
-This logic can be changed easily by modifying the SQL in the `apply_delete_logic` function.
 
 ## Config-free commands
 
@@ -129,7 +131,7 @@ Since inventory generation and blob deletion can take a long time, these steps a
 
 ## Remote execution on GCP Batch
 
-To aid in automation and reduce runtime, the `run-all` command can also be run submitted as a [GCP Batch](https://cloud.google.com/batch/docs/get-started) job:
+To aid in automation and reduce runtime, the `run-all` command can also be submitted as a [GCP Batch](https://cloud.google.com/batch/docs/get-started) job:
 
 ```shell
 poetry run python -m arret --config-path="./configs/your_config.toml" submit-to-gcp-batch
@@ -141,4 +143,4 @@ This requires having already created a GCP service account with at least these I
 - Service Usage Consumer
 - Storage Object Admin
 
-The service account must also [be registered in Terra and belong to a Terra group](https://support.terra.bio/hc/en-us/articles/7448594459931-How-to-use-a-service-account-in-Terra) that has write access to the workspace you're cleaning and read access to workspaces listed in `other_workspaces`. Note that it might take up to a day for Terra to sync permissions from a newly registered service account to the GCS buckets it should be able to access.
+The service account must also [be registered in Terra and belong to a Terra group](https://support.terra.bio/hc/en-us/articles/7448594459931-How-to-use-a-service-account-in-Terra) that has write access to the workspace you're cleaning and read access to workspaces listed in `other_workspaces` (if any). Note that it might take up to a day for Terra to sync permissions from a newly registered service account to the GCS buckets it should be able to access.

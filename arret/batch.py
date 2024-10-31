@@ -67,12 +67,11 @@ def do_submit_to_gcp_batch(
     container.image_uri = container_image_uri
     container.entrypoint = "/bin/bash"
 
-    # construct the full command for the `remote run-all` CLI tool
+    # construct the full command for the `run-all` command
     command_parts = [
         "python",
         "-m",
         "arret",
-        "remote",
         "run-all",
         "--workspace-namespace",
         workspace_namespace,

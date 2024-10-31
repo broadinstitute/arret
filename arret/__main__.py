@@ -90,7 +90,7 @@ def inventory(
             workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
             workspace_name=ctx.obj["terra"]["workspace_name"],
             gcp_project_id=ctx.obj["gcp_project_id"],
-            inventory_path=ctx.obj["plan"]["inventory_path"],
+            inventory_path=ctx.obj["inventory"]["inventory_path"],
         )
 
     ig.write_inventory()
@@ -154,7 +154,7 @@ def plan(
         write_plan(
             workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
             workspace_name=ctx.obj["terra"]["workspace_name"],
-            inventory_path=ctx.obj["plan"]["inventory_path"],
+            inventory_path=ctx.obj["inventory"]["inventory_path"],
             plan_path=ctx.obj["plan"]["plan_path"],
             days_considered_old=int(ctx.obj["plan"]["days_considered_old"]),
             bytes_considered_large=int(ctx.obj["plan"]["bytes_considered_large"]),
@@ -181,6 +181,9 @@ def clean(
             ' "namespace/name" (can be specified multiple times)'
         ),
     ] = None,
+    to_delete_sql: Annotated[
+        str, typer.Option(help="the SQL string to use for assigning `to_delete`")
+    ] = "is_pipeline_logs OR is_old OR is_large",
 ) -> None:
     """
     Read the DuckDB plan database and delete all files indicated as deletable.
@@ -204,6 +207,7 @@ def clean(
             plan_path=str(plan_path),
             gcp_project_id=gcp_project_id,
             other_workspaces=split_workspace_names(other_workspaces),
+            to_delete_sql=to_delete_sql,
         )
     else:
         do_clean(
@@ -214,6 +218,7 @@ def clean(
             other_workspaces=ctx.obj["terra"]["other_workspaces"]
             if "other_workspaces" in ctx.obj["terra"]
             else [],
+            to_delete_sql=ctx.obj["clean"]["to_delete_sql"],
         )
 
 
@@ -250,6 +255,9 @@ def run_all(
             ' "namespace/name" (can be specified multiple times)'
         ),
     ] = None,
+    to_delete_sql: Annotated[
+        str, typer.Option(help="the SQL string to use for assigning `to_delete`")
+    ] = "is_pipeline_logs OR is_old OR is_large",
 ) -> None:
     """
     Run all arret steps (inventory, plan, clean) in sequence.
@@ -280,6 +288,7 @@ def run_all(
         plan_path,
         gcp_project_id,
         other_workspaces,
+        to_delete_sql,
     )
 
 
