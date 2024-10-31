@@ -29,8 +29,8 @@ def write_plan(
     """
 
     # get the Terra workspace's bucket name
-    tw = TerraWorkspace(workspace_namespace, workspace_name)
-    bucket_name = tw.get_bucket_name()
+    terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
+    bucket_name = terra_workspace.get_bucket_name()
 
     # recreate DB
     try:

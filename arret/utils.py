@@ -6,7 +6,10 @@ from queue import Queue
 from time import sleep
 from typing import Any, Callable, ParamSpec, Type, TypeVar
 
+import google.auth
+import google.oauth2
 import pandas as pd
+from google.oauth2 import id_token
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -144,3 +147,22 @@ class BoundedThreadPoolExecutor(ThreadPoolExecutor):
 
         super().__init__(*args, **kwargs)
         self._work_queue = Queue(queue_size)  # type: ignore
+
+
+def get_gcp_oidc_token() -> str:
+    """
+    Get a GCP OIDC token (ID token) for current credentials.
+
+    :return: the auth/bearer token
+    """
+
+    auth_req = google.auth.transport.requests.Request()  # type: ignore
+
+    token = id_token.fetch_id_token(  # type: ignore
+        auth_req, "https://cloudfunctions.googleapis.com"
+    )
+
+    if token is None:
+        raise ValueError("GCP auth token cannot be None")
+
+    return token

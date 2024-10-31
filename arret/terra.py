@@ -1,15 +1,22 @@
 import logging
 from typing import Any, Callable
+from urllib.parse import urlunsplit
 
 import pandas as pd
 import requests
-from firecloud import api as firecloud_api
 
-from arret.utils import maybe_retry
+from arret.utils import get_gcp_oidc_token, maybe_retry
 
 
 class TerraWorkspace:
     def __init__(self, workspace_namespace: str, workspace_name: str) -> None:
+        """
+        Make an object representing a Terra workspace.
+
+        :param workspace_namespace: the namespace of the Terra workspace
+        :param workspace_name: the name of the Terra workspace
+        """
+
         self.workspace_namespace = workspace_namespace
         self.workspace_name = workspace_name
 
@@ -21,10 +28,12 @@ class TerraWorkspace:
         """
 
         j = call_firecloud_api(
-            firecloud_api.get_workspace,
-            namespace=self.workspace_namespace,
-            workspace=self.workspace_name,
-            fields="workspace.bucketName",
+            make_firecloud_req,
+            path_parts=[
+                "workspaces",
+                self.workspace_namespace,
+                self.workspace_name,
+            ],
         )
 
         return j["workspace"]["bucketName"]
@@ -37,9 +46,13 @@ class TerraWorkspace:
         """
 
         j = call_firecloud_api(
-            firecloud_api.list_entity_types,
-            namespace=self.workspace_namespace,
-            workspace=self.workspace_name,
+            make_firecloud_req,
+            path_parts=[
+                "workspaces",
+                self.workspace_namespace,
+                self.workspace_name,
+                "entities",
+            ],
         )
 
         return list(j.keys())
@@ -53,15 +66,48 @@ class TerraWorkspace:
         """
 
         j = call_firecloud_api(
-            firecloud_api.get_entities,
-            namespace=self.workspace_namespace,
-            workspace=self.workspace_name,
-            etype=entity_type,
+            make_firecloud_req,
+            path_parts=[
+                "workspaces",
+                self.workspace_namespace,
+                self.workspace_name,
+                "entities",
+                "sample",
+            ],
         )
 
         records = [{f"{entity_type}_id": x["name"], **x["attributes"]} for x in j]
 
         return pd.DataFrame(records)
+
+
+def make_firecloud_req(
+    path_parts: list[str], params: dict[str, Any] | None = None
+) -> Any:
+    """
+    Return a `requests.get` result for a Firecloud API endpoint.
+
+    :param path_parts: a list of URL parts to '/'-join
+    :param params: an optional dictionary of parameters
+    :return:
+    """
+
+    if params is None:
+        params = {}
+
+    # get token for Firecloud API
+    bearer = get_gcp_oidc_token()
+
+    # construct URL and query params
+    endpoint = urlunsplit(
+        ("https", "api.firecloud.org", "/".join(["api", *path_parts]), "", "")
+    )
+
+    return requests.get(
+        endpoint,
+        params=params,
+        headers={"Authorization": f"Bearer {bearer}"},
+    )
 
 
 def call_firecloud_api(

@@ -11,11 +11,12 @@ packages = [{include = "arret"}]
 python = "^3.12"
 pandas = "^2.2.2"
 google-cloud-storage = "^2.18.1"
-firecloud = "^0.16.37"
 typer = "^0.12.3"
 click = "^8.1.7"
 duckdb = "^1.1.2"
 psutil = "^6.1.0"
+google-cloud-batch = "^0.17.30"
+google-cloud-compute = "^1.20.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.7.1"
