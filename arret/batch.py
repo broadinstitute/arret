@@ -4,6 +4,7 @@ import re
 from uuid import uuid4
 
 from google.cloud import batch_v1, compute_v1
+from google.protobuf import duration_pb2
 
 
 def do_submit_to_gcp_batch(
@@ -45,7 +46,9 @@ def do_submit_to_gcp_batch(
 
     instance_policy = batch_v1.AllocationPolicy.InstancePolicy()
     instance_policy.machine_type = machine_type
-    instance_policy.provisioning_model = provisioning_model
+    instance_policy.provisioning_model = batch_v1.AllocationPolicy.ProvisioningModel[
+        provisioning_model
+    ]
 
     instances = batch_v1.AllocationPolicy.InstancePolicyOrTemplate()
     instances.policy = instance_policy
@@ -108,7 +111,7 @@ def do_submit_to_gcp_batch(
     task_spec.runnables = [runnable]
     task_spec.compute_resource = compute_resource
     task_spec.max_retry_count = 0
-    task_spec.max_run_duration = f"{max_run_seconds}s"
+    task_spec.max_run_duration = f"{max_run_seconds}s"  # type: ignore
 
     task_group = batch_v1.TaskGroup()
     task_group.task_count = 1

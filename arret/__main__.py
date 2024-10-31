@@ -36,7 +36,7 @@ def done(*args, **kwargs):
 def main(
     ctx: typer.Context,
     config_path: Annotated[
-        Path, typer.Option(help="path to an arret TOML config file")
+        Path | None, typer.Option(help="path to an arret TOML config file")
     ] = None,
 ):
     logger = logging.getLogger()
@@ -54,14 +54,14 @@ def main(
 def inventory(
     ctx: typer.Context,
     workspace_namespace: Annotated[
-        str, typer.Option(help="the namespace of the Terra workspace")
+        str | None, typer.Option(help="the namespace of the Terra workspace")
     ] = None,
     workspace_name: Annotated[
-        str, typer.Option(help="the name of the Terra workspace")
+        str | None, typer.Option(help="the name of the Terra workspace")
     ] = None,
-    gcp_project_id: Annotated[str, typer.Option(help="a GCP project ID")] = None,
+    gcp_project_id: Annotated[str | None, typer.Option(help="a GCP project ID")] = None,
     inventory_path: Annotated[
-        Path, typer.Option(help="path to the inventory .ndjson file")
+        Path | None, typer.Option(help="path to the inventory .ndjson file")
     ] = None,
 ) -> None:
     """
@@ -69,12 +69,22 @@ def inventory(
     """
 
     if ctx.obj is None:
+        if workspace_namespace is None:
+            raise typer.BadParameter("--workspace-namespace is required")
+        if workspace_name is None:
+            raise typer.BadParameter("--workspace-name is required")
+        if gcp_project_id is None:
+            raise typer.BadParameter("--gcp-project-id is required")
+        if inventory_path is None:
+            raise typer.BadParameter("--inventory-path is required")
+
         ig = InventoryGenerator(
             workspace_namespace=workspace_namespace,
             workspace_name=workspace_name,
             gcp_project_id=gcp_project_id,
             inventory_path=inventory_path,
         )
+
     else:
         ig = InventoryGenerator(
             workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
@@ -90,22 +100,23 @@ def inventory(
 def plan(
     ctx: typer.Context,
     workspace_namespace: Annotated[
-        str, typer.Option(help="the namespace of the Terra workspace")
+        str | None, typer.Option(help="the namespace of the Terra workspace")
     ] = None,
     workspace_name: Annotated[
-        str, typer.Option(help="the name of the Terra workspace")
+        str | None, typer.Option(help="the name of the Terra workspace")
     ] = None,
     inventory_path: Annotated[
-        Path, typer.Option(help="path to the inventory .ndjson file")
+        Path | None, typer.Option(help="path to the inventory .ndjson file")
     ] = None,
     plan_path: Annotated[
-        Path, typer.Option(help="path to write plan .duckdb file")
+        Path | None, typer.Option(help="path to write plan .duckdb file")
     ] = None,
     days_considered_old: Annotated[
-        int, typer.Option(help="number of days after which a file is considered old")
+        int | None,
+        typer.Option(help="number of days after which a file is considered old"),
     ] = None,
     bytes_considered_large: Annotated[
-        int,
+        int | None,
         typer.Option(
             help="size threshold (in bytes) above which a file is considered large"
         ),
@@ -117,6 +128,19 @@ def plan(
     """
 
     if ctx.obj is None:
+        if workspace_namespace is None:
+            raise typer.BadParameter("--workspace-namespace is required")
+        if workspace_name is None:
+            raise typer.BadParameter("--workspace-name is required")
+        if inventory_path is None:
+            raise typer.BadParameter("--inventory-path is required")
+        if plan_path is None:
+            raise typer.BadParameter("--plan-path is required")
+        if days_considered_old is None:
+            raise typer.BadParameter("--days-considered-old is required")
+        if bytes_considered_large is None:
+            raise typer.BadParameter("--bytes-considered-large is required")
+
         write_plan(
             workspace_namespace=workspace_namespace,
             workspace_name=workspace_name,
@@ -125,6 +149,7 @@ def plan(
             days_considered_old=days_considered_old,
             bytes_considered_large=bytes_considered_large,
         )
+
     else:
         write_plan(
             workspace_namespace=ctx.obj["terra"]["workspace_namespace"],
@@ -140,17 +165,17 @@ def plan(
 def clean(
     ctx: typer.Context,
     workspace_namespace: Annotated[
-        str, typer.Option(help="the namespace of the Terra workspace")
+        str | None, typer.Option(help="the namespace of the Terra workspace")
     ] = None,
     workspace_name: Annotated[
-        str, typer.Option(help="the name of the Terra workspace")
+        str | None, typer.Option(help="the name of the Terra workspace")
     ] = None,
     plan_path: Annotated[
-        Path, typer.Option(help="path to write plan .duckdb file")
+        Path | None, typer.Option(help="path to write plan .duckdb file")
     ] = None,
-    gcp_project_id: Annotated[str, typer.Option(help="a GCP project ID")] = None,
+    gcp_project_id: Annotated[str | None, typer.Option(help="a GCP project ID")] = None,
     other_workspaces: Annotated[
-        list[str],
+        list[str] | None,
         typer.Option(
             help="another Terra workspace to check for blob usage against, formatted as"
             ' "namespace/name" (can be specified multiple times)'
@@ -162,6 +187,17 @@ def clean(
     """
 
     if ctx.obj is None:
+        if workspace_namespace is None:
+            raise typer.BadParameter("--workspace-namespace is required")
+        if workspace_name is None:
+            raise typer.BadParameter("--workspace-name is required")
+        if plan_path is None:
+            raise typer.BadParameter("--plan-path is required")
+        if gcp_project_id is None:
+            raise typer.BadParameter("--gcp-project-id is required")
+        if other_workspaces is None:
+            other_workspaces = []
+
         do_clean(
             workspace_namespace=workspace_namespace,
             workspace_name=workspace_name,
@@ -185,29 +221,30 @@ def clean(
 def run_all(
     ctx: typer.Context,
     workspace_namespace: Annotated[
-        str, typer.Option(help="the namespace of the Terra workspace")
+        str | None, typer.Option(help="the namespace of the Terra workspace")
     ] = None,
     workspace_name: Annotated[
-        str, typer.Option(help="the name of the Terra workspace")
+        str | None, typer.Option(help="the name of the Terra workspace")
     ] = None,
-    gcp_project_id: Annotated[str, typer.Option(help="a GCP project ID")] = None,
+    gcp_project_id: Annotated[str | None, typer.Option(help="a GCP project ID")] = None,
     inventory_path: Annotated[
-        Path, typer.Option(help="path to the inventory .ndjson file")
+        Path | None, typer.Option(help="path to the inventory .ndjson file")
     ] = None,
     plan_path: Annotated[
-        Path, typer.Option(help="path to write plan .duckdb file")
+        Path | None, typer.Option(help="path to write plan .duckdb file")
     ] = None,
     days_considered_old: Annotated[
-        int, typer.Option(help="number of days after which a file is considered old")
+        int | None,
+        typer.Option(help="number of days after which a file is considered old"),
     ] = None,
     bytes_considered_large: Annotated[
-        int,
+        int | None,
         typer.Option(
             help="size threshold (in bytes) above which a file is considered large"
         ),
     ] = None,
     other_workspaces: Annotated[
-        list[str],
+        list[str] | None,
         typer.Option(
             help="another Terra workspace to check for blob usage against, formatted as"
             ' "namespace/name" (can be specified multiple times)'
@@ -250,51 +287,53 @@ def run_all(
 def submit_to_gcp_batch(
     ctx: typer.Context,
     workspace_namespace: Annotated[
-        str, typer.Option(help="the namespace of the Terra workspace")
+        str | None, typer.Option(help="the namespace of the Terra workspace")
     ] = None,
     workspace_name: Annotated[
-        str, typer.Option(help="the name of the Terra workspace")
+        str | None, typer.Option(help="the name of the Terra workspace")
     ] = None,
-    gcp_project_id: Annotated[str, typer.Option(help="a GCP project ID")] = None,
+    gcp_project_id: Annotated[str | None, typer.Option(help="a GCP project ID")] = None,
     days_considered_old: Annotated[
-        int, typer.Option(help="number of days after which a file is considered old")
+        int | None,
+        typer.Option(help="number of days after which a file is considered old"),
     ] = None,
     bytes_considered_large: Annotated[
-        int,
+        int | None,
         typer.Option(
             help="size threshold (in bytes) above which a file is considered large"
         ),
     ] = None,
     other_workspaces: Annotated[
-        list[str],
+        list[str] | None,
         typer.Option(
             help="another Terra workspace to check for blob usage against, formatted as"
             ' "namespace/name" (can be specified multiple times)'
         ),
     ] = None,
     region: Annotated[
-        str, typer.Option(help="the GCP region name to run the batch job in")
+        str | None, typer.Option(help="the GCP region name to run the batch job in")
     ] = None,
     zone: Annotated[
-        str,
+        str | None,
         typer.Option(
             help='the GCP zone (e.g. "us-central1-a") to query for machine type info'
         ),
     ] = None,
     machine_type: Annotated[
-        str, typer.Option(help='the name of the machine type (e.g. "n2-highcpu-4")')
+        str | None,
+        typer.Option(help='the name of the machine type (e.g. "n2-highcpu-4")'),
     ] = None,
     boot_disk_mib: Annotated[
-        int, typer.Option(help="the size of the boot disk in MiB")
+        int | None, typer.Option(help="the size of the boot disk in MiB")
     ] = None,
     max_run_seconds: Annotated[
-        int, typer.Option(help="maximum runtime of the job in seconds")
+        int | None, typer.Option(help="maximum runtime of the job in seconds")
     ] = None,
     provisioning_model: Annotated[
         str, typer.Option(help='VM provisioning model (e.g. "SPOT", "STANDARD", etc.)')
     ] = "STANDARD",
     service_account_email: Annotated[
-        str, typer.Option(help="an email address for a service account")
+        str | None, typer.Option(help="an email address for a service account")
     ] = None,
     container_image_uri: Annotated[
         str, typer.Option(help="a URL for the arret Docker image")
@@ -305,6 +344,31 @@ def submit_to_gcp_batch(
     """
 
     if ctx.obj is None:
+        if workspace_namespace is None:
+            raise typer.BadParameter("--workspace-namespace is required")
+        if workspace_name is None:
+            raise typer.BadParameter("--workspace-name is required")
+        if gcp_project_id is None:
+            raise typer.BadParameter("--gcp-project-id is required")
+        if days_considered_old is None:
+            raise typer.BadParameter("--days-considered-old is required")
+        if bytes_considered_large is None:
+            raise typer.BadParameter("--bytes-considered-large is required")
+        if other_workspaces is None:
+            other_workspaces = []
+        if region is None:
+            raise typer.BadParameter("--region is required")
+        if zone is None:
+            raise typer.BadParameter("--zone is required")
+        if machine_type is None:
+            raise typer.BadParameter("--machine-type is required")
+        if boot_disk_mib is None:
+            raise typer.BadParameter("--boot-disk-mib is required")
+        if max_run_seconds is None:
+            raise typer.BadParameter("--max-run-seconds is required")
+        if service_account_email is None:
+            raise typer.BadParameter("--service-account-email is required")
+
         do_submit_to_gcp_batch(
             workspace_namespace=workspace_namespace,
             workspace_name=workspace_name,
