@@ -107,6 +107,8 @@ This reopens the DuckDB and collects blobs to be deleted. It will delete a blob 
 - blob is referenced in any Terra data table in the workspace of interest or any of the `other_workspaces`
 - blob is forcibly kept for recordkeeping purposes (i.e. it's a `script` or `.log` file)
 
+If you have Terra job submissions in process and your `to_delete_sql` logic is set to delete "old" objects, make sure that `days_considered_old` is high enough not to delete task/workflow outputs that might belong to an active job. It's safest to run arret when your workspace has no active jobs at all.
+
 ## Config-free commands
 
 Alternatively, you can omit `--config-path` and pass named options to the various commands, e.g.:
