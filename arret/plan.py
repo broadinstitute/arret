@@ -148,7 +148,7 @@ def make_plan(
             -- indicate deletable files we'll make an exception for (task scripts and 
             -- logs) even if they're old
             force_keep = name LIKE '%.log' OR name LIKE '/script';
-    """,
+        """,
         {
             "bytes_considered_large": bytes_considered_large,
             "date_considered_new": pd.Timestamp.now()

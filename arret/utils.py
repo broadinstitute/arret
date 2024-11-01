@@ -177,9 +177,8 @@ def split_workspace_names(other_workspaces: list[str]) -> list[dict[str, str]]:
     :return: a list of structured namespace/name dictionaries
     """
 
-    other_workspaces_dicts = [
+    return [
         {"workspace_namespace": x1, "workspace_name": x2}
         for x in other_workspaces
         for x1, x2 in [x.split("/")]
     ]
-    return other_workspaces_dicts
