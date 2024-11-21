@@ -9,7 +9,11 @@ import psutil
 from google.cloud import storage
 
 from arret.terra import TerraWorkspace
-from arret.utils import BoundedThreadPoolExecutor, extract_unique_values
+from arret.utils import (
+    BoundedThreadPoolExecutor,
+    extract_unique_values,
+    human_readable_size,
+)
 
 
 def do_clean(
@@ -48,9 +52,9 @@ def do_clean(
     # apply deletion logic
     with duckdb.connect(plan_path) as db:
         apply_delete_logic(db, gs_urls, to_delete_sql)
-        blobs_to_delete = (
-            db.table("blobs").filter("to_delete")["name"].fetchdf()["name"].tolist()
-        )
+        to_delete_rows = db.table("blobs").filter("to_delete")
+        blobs_to_delete = to_delete_rows["name"].fetchdf()["name"].tolist()
+        delete_size = to_delete_rows.sum("size").fetchone()[0]  # pyright: ignore
 
     if len(blobs_to_delete) == 0:
         logging.info("No blobs to delete")
@@ -69,7 +73,8 @@ def do_clean(
     n_batches = 1 + n_blobs // max_batch_size
     batch_size = ceil(n_blobs / n_batches)
     logging.info(
-        f"Deleting {n_blobs} blobs in {n_batches} batches of {batch_size} each"
+        f"Deleting {n_blobs} blobs totaling {human_readable_size(delete_size)} "
+        f"in {n_batches} batches of {batch_size} each"
     )
 
     # delete batches of blobs
