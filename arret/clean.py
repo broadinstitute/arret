@@ -162,8 +162,7 @@ def apply_delete_logic(
         UPDATE
             blobs
         SET
-            to_delete = ({to_delete_sql})
-            AND NOT (in_data_table OR force_keep);
+            to_delete = ({to_delete_sql}) AND NOT (in_data_table OR force_keep);
     """)
 
 

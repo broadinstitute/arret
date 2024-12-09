@@ -147,7 +147,7 @@ def make_plan(
             is_pipeline_logs = name LIKE '%/pipelines-logs/%',
             -- indicate deletable files we'll make an exception for (task scripts and 
             -- logs) even if they're old
-            force_keep = name LIKE '%.log' OR name LIKE '/script';
+            force_keep = name LIKE '%.log' OR name LIKE '%/script';
         """,
         {
             "bytes_considered_large": bytes_considered_large,
