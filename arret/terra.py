@@ -72,7 +72,7 @@ class TerraWorkspace:
                 self.workspace_namespace,
                 self.workspace_name,
                 "entities",
-                "sample",
+                entity_type,
             ],
         )
 
