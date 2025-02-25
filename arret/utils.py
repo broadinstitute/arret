@@ -137,7 +137,7 @@ def human_readable_size(size: float) -> str:
 
 
 class BoundedThreadPoolExecutor(ThreadPoolExecutor):
-    def __init__(self, *args, queue_size: int, **kwargs):
+    def __init__(self, *args, queue_size: int = 2, **kwargs):
         """
         Subclass the default `ThreadPoolExecutor` to use a `Queue` instead of a
         `SimpleQueue` so that the pool size cannot grow beyond the requested queue size.

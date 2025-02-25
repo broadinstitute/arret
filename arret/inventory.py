@@ -35,6 +35,9 @@ class InventoryGenerator:
         self.inventory_path = inventory_path
         self.n_workers = psutil.cpu_count()
 
+        if self.n_workers is None:
+            self.n_workers = 1
+
         terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
         bucket_name = terra_workspace.get_bucket_name()
 
@@ -56,10 +59,11 @@ class InventoryGenerator:
         """
 
         with BoundedThreadPoolExecutor(
-            max_workers=self.n_workers, queue_size=self.n_workers * 2
+            max_workers=self.n_workers,
+            queue_size=self.n_workers * 2,  # pyright: ignore
         ) as executor:
-            blobs = self.storage_client.list_blobs(
-                self.bucket,
+            blobs = self.storage_client.list_blobs(  # pyright: ignore
+                bucket_or_name=self.bucket,
                 fields="items(name,updated,size),nextPageToken",
                 soft_deleted=False,
             )

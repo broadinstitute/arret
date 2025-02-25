@@ -78,7 +78,12 @@ def do_clean(
     )
 
     # delete batches of blobs
-    with BoundedThreadPoolExecutor(queue_size=psutil.cpu_count() * 2) as executor:
+    n_cpus = psutil.cpu_count()
+
+    if n_cpus is None:
+        n_cpus = 1
+
+    with BoundedThreadPoolExecutor(queue_size=n_cpus * 2) as executor:
         for i in range(0, n_batches):
             batch = list(
                 blobs_to_delete[(i * batch_size) : (i * batch_size + batch_size)]
