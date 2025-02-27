@@ -103,9 +103,35 @@ This reopens the DuckDB and collects blobs to be deleted. It will delete a blob 
 - blob is large (based on `bytes_considered_large`)
 - blob is inside a `/pipelines-logs/` folder
 
-...except when _any_ of the following is true:
+...except when:
 - blob is referenced in any Terra data table in the workspace of interest or any of the `other_workspaces`
-- blob is forcibly kept for recordkeeping purposes (i.e. it's a `script` or `.log` file)
+
+Before the deletion logic is applied, a row in the `blobs` table might look like this:
+
+```
+url                 gs://fc-1dfcd8c5-aaaa-aaaa-aaaa-0358fcf90e31/s...
+name                submissions/01263c2a-bbbb-bbbb-bbbb-216fd55a4c...
+size                                                           414776
+updated                                     2024-06-11 06:42:16-04:00
+is_large                                                        False
+is_old                                                           True
+is_pipeline_logs                                                False
+in_data_table                                                   False
+to_delete                                                       False
+```
+
+Thus, to delete blobs that are pipeline logs, old, or large, while keeping log files and task scripts, set this config:
+
+```toml
+[clean]
+to_delete_sql = """
+    (is_pipeline_logs OR is_old OR is_large)
+    AND
+    (name NOT LIKE '%/script')
+    AND
+    (name NOT LIKE '%.log')
+"""
+```
 
 If you have Terra job submissions in process and your `to_delete_sql` logic is set to delete "old" objects, make sure that `days_considered_old` is high enough not to delete task/workflow outputs that might belong to an active job. It's safest to run arret when your workspace has no active jobs at all.
 

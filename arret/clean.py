@@ -141,11 +141,9 @@ def apply_delete_logic(
         - blob is large (based on `bytes_considered_large`)
         - blob is inside a `/pipelines-logs/` "folder"
 
-    ...except when either of the following is true:
+    ...except when:
         - blob is referenced in a Terra data table in the workspace of interest or any
         of the `other_workspaces`
-        - blob is forcibly kept for recordkeeping purposes (i.e. it's a `script` or
-        `.log` file)
 
     :param db: the DuckDB database
     :param gs_urls: set of unique GCS URLs found in the data tables
@@ -167,8 +165,16 @@ def apply_delete_logic(
         UPDATE
             blobs
         SET
-            to_delete = ({to_delete_sql}) AND NOT (in_data_table OR force_keep);
+            to_delete = ({to_delete_sql}) AND NOT in_data_table;
     """)
+
+    # confirm we're not deleting any active blobs
+    assert (
+        db.sql(  # pyright: ignore
+            "SELECT COUNT(*) AS n FROM blobs WHERE in_data_table AND to_delete"
+        ).fetchone()[0]
+        == 0
+    )
 
 
 def delete_batch(

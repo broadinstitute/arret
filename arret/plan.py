@@ -67,7 +67,6 @@ def set_up_db(db: duckdb.DuckDBPyConnection) -> None:
             is_large BOOLEAN NOT NULL DEFAULT FALSE,
             is_old BOOLEAN NOT NULL DEFAULT FALSE,
             is_pipeline_logs BOOLEAN NOT NULL DEFAULT FALSE,
-            force_keep BOOLEAN NOT NULL DEFAULT FALSE,
             in_data_table BOOLEAN NOT NULL DEFAULT FALSE,
             to_delete BOOLEAN NOT NULL DEFAULT FALSE
         );
@@ -118,9 +117,7 @@ def read_inventory(
 
 
 def make_plan(
-    db: duckdb.DuckDBPyConnection,
-    days_considered_old: int,
-    bytes_considered_large: int,
+    db: duckdb.DuckDBPyConnection, days_considered_old: int, bytes_considered_large: int
 ) -> None:
     """
     Generates a cleanup plan for a given inventory dataframe based on age and size
@@ -144,10 +141,7 @@ def make_plan(
             -- indicate old files
             is_old = updated < $date_considered_new,
             -- indicate paths pipeline-logs folder, which are redundant with task logs
-            is_pipeline_logs = name LIKE '%/pipelines-logs/%',
-            -- indicate deletable files we'll make an exception for (task scripts and 
-            -- logs) even if they're old
-            force_keep = name LIKE '%.log' OR name LIKE '%/script';
+            is_pipeline_logs = name LIKE '%/pipelines-logs/%';
         """,
         {
             "bytes_considered_large": bytes_considered_large,

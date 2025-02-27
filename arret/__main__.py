@@ -124,7 +124,7 @@ def plan(
 ) -> None:
     """
     Read the .ndjson inventory file into a DuckDB database and indicate blobs that are
-    old, large, forcibly kept, etc.
+    old, large, etc.
     """
 
     if ctx.obj is None:

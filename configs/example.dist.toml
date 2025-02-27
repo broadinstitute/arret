@@ -16,7 +16,13 @@ days_considered_old = 30 # can be 0
 bytes_considered_large = 1e6 # can be 0
 
 [clean]
-to_delete_sql = "is_pipeline_logs OR is_old OR is_large"
+to_delete_sql = """
+    (is_pipeline_logs OR is_old OR is_large)
+    AND
+    (name NOT LIKE '%/script')
+    AND
+    (name NOT LIKE '%.log')
+"""
 
 [batch]
 region = "us-central1"
