@@ -198,4 +198,7 @@ def delete_batch(
 
     with storage_client.batch(raise_exception=False):
         for blob in batch:
-            bucket.delete_blob(blob_name=blob)  # pyright: ignore
+            try:
+                bucket.delete_blob(blob_name=blob)  # pyright: ignore
+            except Exception as e:
+                logging.error(f"Error deleting blob {blob}: {e}")

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "arret"
-version = "1.0.0"
+version = "1.0.1"
 description = ""
 authors = ["Devin McCabe <dmccabe@broadinstitute.org>"]
 license = "MIT"
