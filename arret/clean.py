@@ -36,6 +36,11 @@ def do_clean(
     :param to_delete_sql: the SQL string to use for assigning `to_delete`
     """
 
+    n_cpus = psutil.cpu_count()
+
+    if n_cpus is None:
+        n_cpus = 1
+
     # get the gs:// URLs referenced in relevant workspaces
     workspaces_to_check = [
         {"workspace_namespace": workspace_namespace, "workspace_name": workspace_name},
@@ -44,7 +49,11 @@ def do_clean(
 
     gs_urls = set().union(
         *[
-            get_gs_urls(x["workspace_namespace"], x["workspace_name"])
+            get_gs_urls(
+                workspace_namespace=x["workspace_namespace"],
+                workspace_name=x["workspace_name"],
+                n_workers=min(n_cpus, 10),
+            )
             for x in workspaces_to_check
         ]
     )
@@ -78,11 +87,6 @@ def do_clean(
     )
 
     # delete batches of blobs
-    n_cpus = psutil.cpu_count()
-
-    if n_cpus is None:
-        n_cpus = 1
-
     with BoundedThreadPoolExecutor(queue_size=n_cpus * 2) as executor:
         for i in range(0, n_batches):
             batch = list(
@@ -101,31 +105,45 @@ def do_clean(
             sleep(random.uniform(0.01, 0.03))  # calm the thundering herd
 
 
-def get_gs_urls(workspace_namespace: str, workspace_name: str) -> set[str]:
+def get_gs_urls(
+    workspace_namespace: str, workspace_name: str, n_workers: int
+) -> set[str]:
     """
     Retrieve Google Cloud Storage (gs://) URLs from data tables in a Terra workspace.
 
     :param workspace_namespace: namespace of the Terra workspace
     :param workspace_name: name of the Terra workspace
+    :param n_workers: number of worker threads
     :return: set of unique GCS URLs found in the data tables
     """
 
     logging.info(
-        f"Getting GCS URLs referenced in {workspace_namespace}/{workspace_name} data tables"
+        f"Getting GCS URLs referenced in {workspace_namespace}/{workspace_name} "
+        "data tables"
     )
     terra_workspace = TerraWorkspace(workspace_namespace, workspace_name)
-
     entity_types = terra_workspace.get_entity_types()
-    entities = {k: terra_workspace.get_entities(k) for k in entity_types}
 
+    # collect entity data frames in threads
+    with BoundedThreadPoolExecutor(max_workers=n_workers) as executor:
+        futures = {
+            k: executor.submit(terra_workspace.get_entities, entity_type=k)
+            for k in entity_types
+        }
+
+    # concat distinct gs:// URLs across data frames into a set
     gs_urls = set()
 
-    for _, df in entities.items():
-        unique_values = extract_unique_values(df)
+    for k, f in futures.items():
+        unique_values = extract_unique_values(f.result())
 
-        gs_urls.update(
-            {x for x in unique_values if isinstance(x, str) and x.startswith(f"gs://")}
-        )
+        batch_gs_urls = {
+            x for x in unique_values if isinstance(x, str) and x.startswith(f"gs://")
+        }
+
+        logging.info(f"Found {len(batch_gs_urls)} unique URLs in {k}")
+
+        gs_urls.update(batch_gs_urls)
 
     return gs_urls
 
