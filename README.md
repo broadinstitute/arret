@@ -3,7 +3,7 @@ _Arret_: Stop overspending on Terra GCS storage
 
 Inspired by [automop](https://github.com/broadinstitute/automop/), this tool deletes unneeded objects from a Terra workspace's GCS bucket in order to reduce storage costs.
 
-It will delete objects in the bucket that are redundant (e.g. `pipelines-logs/*`), older than a specified date, or larger than a specified size. In order to prevent deleting "active" files, however, any file with a `gs://` URL referenced in any data table in the Terra workspace (or other specified workspaces) will not be deleted.
+It will delete objects in the bucket according to configurable rules, including filters on creation time, size, and name. In order to prevent deleting "active" files, however, any file with a `gs://` URL referenced in any data table in the Terra workspace (or other specified workspaces) will not be deleted.
 
 # Recommended installation
 
@@ -98,10 +98,12 @@ This loads the generated inventory and stores it as a DuckDB database, with addi
 poetry run python -m arret --config-path="./configs/your_config.toml" clean
 ```
 
-This reopens the DuckDB and collects blobs to be deleted. It will delete a blob if _any_ of the following is true (this logic can be changed easily by modifying the `to_delete_sql` SQL string):
+This reopens the DuckDB and collects blobs to be deleted.
+
+For the example `to_delete_sql` SQL string `"is_pipeline_logs OR is_old OR is_large"`, it will delete a blob if _any_ of the following is true:
+- blob is inside a `/pipelines-logs/` folder
 - blob is old (based on `days_considered_old`)
 - blob is large (based on `bytes_considered_large`)
-- blob is inside a `/pipelines-logs/` folder
 
 ...except when:
 - blob is referenced in any Terra data table in the workspace of interest or any of the `other_workspaces`
@@ -135,6 +137,8 @@ to_delete_sql = """
 
 If you have Terra job submissions in process and your `to_delete_sql` logic is set to delete "old" objects, make sure that `days_considered_old` is high enough not to delete task/workflow outputs that might belong to an active job. It's safest to run arret when your workspace has no active jobs at all.
 
+Any [DuckDB SELECT syntax](https://duckdb.org/docs/stable/sql/query_syntax/select) can be used to filter the `blobs` table. The three `is_*` columns are populated to handle common use cases.
+
 ## Config-free commands
 
 Alternatively, you can omit `--config-path` and pass named options to the various commands, e.g.:
@@ -155,7 +159,7 @@ poetry run python -m arret run-all \
 
 ## Runtime
 
-Since inventory generation and blob deletion can take a long time, these steps are multithreaded. Even with many threads available, though, running arret might still take several hours if the Terra workspace has thousands of job submissions. Terra generates lots of small files (especially redundant logs) that must be iterated every time the `inventory` step runs. One source is a workflow's `/pipelines-logs/` folder, which arret deletes, so subsequent runs will be nominally faster.
+Since inventory generation and blob deletion can take a long time, these steps are multithreaded. Even with many threads available, though, running arret might still take several hours if the Terra workspace has thousands of job submissions. Terra generates lots of small files (especially redundant logs) that must be iterated every time the `inventory` step runs. One source is a workflow's `/pipelines-logs/` folder, which arret deletes, so subsequent runs will be nominally faster if you opt to delete these.
 
 ## Remote execution on GCP Batch
 
