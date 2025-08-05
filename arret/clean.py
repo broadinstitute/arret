@@ -9,11 +9,7 @@ import psutil
 from google.cloud import storage
 
 from arret.terra import TerraWorkspace
-from arret.utils import (
-    BoundedThreadPoolExecutor,
-    extract_unique_values,
-    human_readable_size,
-)
+from arret.utils import BoundedThreadPoolExecutor, collect_gs_urls, human_readable_size
 
 
 def do_clean(
@@ -47,8 +43,8 @@ def do_clean(
         *other_workspaces,
     ]
 
-    gs_urls = set().union(
-        *[
+    gs_urls = pd.concat(
+        [
             get_gs_urls(
                 workspace_namespace=x["workspace_namespace"],
                 workspace_name=x["workspace_name"],
@@ -107,14 +103,14 @@ def do_clean(
 
 def get_gs_urls(
     workspace_namespace: str, workspace_name: str, n_workers: int
-) -> set[str]:
+) -> pd.DataFrame:
     """
     Retrieve Google Cloud Storage (gs://) URLs from data tables in a Terra workspace.
 
     :param workspace_namespace: namespace of the Terra workspace
     :param workspace_name: name of the Terra workspace
     :param n_workers: number of worker threads
-    :return: set of unique GCS URLs found in the data tables
+    :return: a data frame of unique URLs the workspace's data tables
     """
 
     logging.info(
@@ -131,25 +127,23 @@ def get_gs_urls(
             for k in entity_types
         }
 
-    # concat distinct gs:// URLs across data frames into a set
-    gs_urls = set()
+    # collect gs:// URLs across returned data frames
+    gs_urls_dfs = []
 
     for k, f in futures.items():
-        unique_values = extract_unique_values(f.result())
+        df = collect_gs_urls(f.result())
+        df["data_table"] = k
+        gs_urls_dfs.append(df)
 
-        batch_gs_urls = {
-            x for x in unique_values if isinstance(x, str) and x.startswith(f"gs://")
-        }
-
-        logging.info(f"Found {len(batch_gs_urls)} unique URLs in {k}")
-
-        gs_urls.update(batch_gs_urls)
+    gs_urls = pd.concat(gs_urls_dfs)
+    gs_urls["workspace_namespace"] = workspace_namespace
+    gs_urls["workspace_name"] = workspace_name
 
     return gs_urls
 
 
 def apply_delete_logic(
-    db: duckdb.DuckDBPyConnection, gs_urls: set[str], to_delete_sql: str
+    db: duckdb.DuckDBPyConnection, gs_urls: pd.DataFrame, to_delete_sql: str
 ) -> None:
     """
     Apply deletion logic to a plan data frame: Delete a blob if any of the following is
@@ -164,19 +158,45 @@ def apply_delete_logic(
         of the `other_workspaces`
 
     :param db: the DuckDB database
-    :param gs_urls: set of unique GCS URLs found in the data tables
+    :param gs_urls: a data frame of unique URLs the workspace's data tables
     :param to_delete_sql: the SQL string to use for assigning `to_delete`
     """
 
     # register set of data table gs:// URLs as a DuckDB table
-    data_table_urls = pd.DataFrame({"url": list(gs_urls)})
-    db.register("data_table_urls", data_table_urls)
+    db.register("gs_urls", gs_urls)
+
+    # log the top 10 columns by total size of their referenced blobs
+    top10 = db.sql("""
+       SELECT
+           gs_urls.workspace_namespace || '/' || gs_urls.workspace_name AS workspace,
+           gs_urls.data_table AS data_table,
+           gs_urls.col AS col,
+           SUM(blobs.size) AS total_size
+       FROM
+           gs_urls
+       INNER JOIN
+           blobs
+       ON
+           gs_urls.url = blobs.url
+       GROUP BY
+           workspace,
+           data_table,
+           col
+       ORDER BY
+           total_size DESC
+       LIMIT 10
+       ;
+   """).df()
+
+    top10["total_size"] = top10["total_size"].apply(human_readable_size)
+
+    logging.info("\n".join(["Top columns by total size:", top10.to_string()]))
 
     db.sql("""
         UPDATE
             blobs
         SET
-            in_data_table = url IN (SELECT url FROM data_table_urls);
+            in_data_table = url IN (SELECT url FROM gs_urls);
     """)
 
     db.sql(f"""
@@ -212,7 +232,7 @@ def delete_batch(
     :param bucket: bucket containing the blobs
     """
 
-    logging.info(f"Deleting batch {i+1} of {n_batches}")
+    logging.info(f"Deleting batch {i + 1} of {n_batches}")
 
     with storage_client.batch(raise_exception=False):
         for blob in batch:

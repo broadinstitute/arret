@@ -4,7 +4,7 @@ from functools import partial
 from math import sqrt
 from queue import Queue
 from time import sleep
-from typing import Any, Callable, ParamSpec, Type, TypeVar
+from typing import Callable, ParamSpec, Type, TypeVar
 
 import google.auth
 import google.oauth2
@@ -81,41 +81,36 @@ def maybe_retry(
             n_retries += 1
 
 
-def flatten(x: Any) -> Any:
+def collect_gs_urls(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Recursively flattens a nested sequence or dictionary into a single, flat iterable.
+    Collect all strings beginning with 'gs://' from a data frame, including those nested
+    in lists or dictionaries.
 
-    :param x: the input to be flattened
-    :return: an iterator that yields each element of the input in a flattened format
-    """
-
-    if isinstance(x, dict):
-        for key, value in x.items():
-            yield from flatten(value)
-    elif isinstance(x, list):
-        for item in x:
-            yield from flatten(item)
-    else:
-        yield x
-
-
-def extract_unique_values(df: pd.DataFrame) -> set[Any]:
-    """
-    Extracts unique values from a data frame by recursively flattening values across
-    columns.
-
-    :param df: A pandas DataFrame
-    :return: A set of unique values from the DataFrame
+    :param df: data farme with potentially nested values.
+    :return: long data frame with columns:
+        - 'url': the extracted gs:// URL string
+        - 'col': the original column the URL was found in
     """
 
-    unique_values = set()
+    urls = []
 
-    for c in df.columns:
-        for x in df[c]:
-            if pd.notna(x):
-                unique_values.update(flatten(x))
+    for col in df.columns:
+        col_series = df[col].dropna()
 
-    return unique_values
+        for val in col_series:
+            stack = [val]
+
+            while stack:
+                current = stack.pop()
+
+                if isinstance(current, str) and current.startswith("gs://"):
+                    urls.append({"url": current, "col": col})
+                elif isinstance(current, list):
+                    stack.extend(current)
+                elif isinstance(current, dict):
+                    stack.extend(current.values())
+
+    return pd.DataFrame(urls)
 
 
 def human_readable_size(size: float) -> str:
